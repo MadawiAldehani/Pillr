@@ -41,6 +41,7 @@ export interface ChatMessage {
   severity?: Severity;
   patientContext?: string;
   counselling?: string[];
+  keyPoints?: string[];
   sources?: string[];
   thinking?: boolean;
 }

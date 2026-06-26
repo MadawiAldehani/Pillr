@@ -1,11 +1,11 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Send, Save, ExternalLink, Flag, Plus, X } from "lucide-react";
+import { Send, Save, ExternalLink, Flag, X, AlertCircle } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { SeverityBadge } from "@/app/components/ui/Badge";
-import { PillLogo } from "@/app/components/ui/PillLogo";
-import { useApp, ChatMode } from "@/app/store";
+import { useApp, ChatMode, Severity } from "@/app/store";
+import { createClient } from "@/lib/supabase";
 
 function ThinkingDots() {
   return (
@@ -43,39 +43,76 @@ export function RxScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [state.messages, state.isThinking]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || state.isThinking) return;
+    const supabase = createClient();
+    const query = input.trim();
+
     const userMsg = {
       id: `m${Date.now()}`,
       role: "user" as const,
-      content: input,
+      content: query,
       mode: state.chatMode,
     };
-    set({ messages: [...state.messages, userMsg], isThinking: true });
+
+    const currentMessages = [...state.messages, userMsg];
+    set({ messages: currentMessages, isThinking: true });
     setInput("");
-    setTimeout(() => {
+
+    try {
+      const { data, error } = await supabase.functions.invoke("rx-assistant", {
+        body: {
+          mode: state.chatMode,
+          query,
+          patientContext: state.chatMode === "interaction" ? {
+            sex: state.patientSex,
+            age: state.patientAge,
+            preg: state.patientPreg,
+            diseases: state.patientDiseases,
+            allergies: state.patientAllergies,
+          } : undefined,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      const patientCtxLine = state.chatMode === "interaction"
+        ? `assessed for ${state.patientAge} y · ${state.patientSex.toLowerCase()}`
+          + (showPreg ? ` · ${state.patientPreg.toLowerCase()}` : "")
+          + (state.patientDiseases.length ? ` · ${state.patientDiseases.join(", ")}` : "")
+          + (state.patientAllergies.length ? ` · allergy: ${state.patientAllergies.join(", ")}` : "")
+        : undefined;
+
       const aiMsg = {
         id: `m${Date.now() + 1}`,
         role: "assistant" as const,
-        content: state.chatMode === "interaction"
-          ? "Based on the provided clinical information, this combination requires careful monitoring. The interaction may alter drug efficacy and increase the risk of adverse events. Consult current clinical guidelines and consider dose adjustment."
-          : "This is a complex clinical question. Based on current evidence and pharmacological principles, here is a summary of the key considerations for practice.",
+        content: data.explanation ?? "",
         mode: state.chatMode,
-        severity: state.chatMode === "interaction" ? ("Moderate" as const) : undefined,
-        patientContext: state.chatMode === "interaction"
-          ? `assessed for ${state.patientAge} y · ${state.patientSex.toLowerCase()}${showPreg ? ` · ${state.patientPreg.toLowerCase()}` : ""}${state.patientDiseases.length ? " · " + state.patientDiseases.join(", ") : ""}${state.patientAllergies.length ? " · allergy: " + state.patientAllergies.join(", ") : ""}`
-          : undefined,
-        counselling: state.chatMode === "interaction"
-          ? ["Monitor the patient closely for signs of adverse effects.", "Review medication history before dispensing.", "Consult prescriber if clinical concern arises."]
-          : undefined,
+        severity: (data.severity as Severity) ?? undefined,
+        patientContext: patientCtxLine,
+        counselling: data.counselling ?? undefined,
+        keyPoints: data.keyPoints ?? undefined,
         sources: ["https://store.wolterskluwercdi.com/CDI", "https://www.drugs.com/"],
       };
+
       set({
-        messages: [...state.messages, userMsg, aiMsg],
+        messages: [...currentMessages, aiMsg],
         isThinking: false,
-        historyList: [{ id: `h${Date.now()}`, label: input.slice(0, 32), mode: state.chatMode }, ...state.historyList],
+        historyList: [
+          { id: `h${Date.now()}`, label: query.slice(0, 36), mode: state.chatMode },
+          ...state.historyList,
+        ],
       });
-    }, 1500);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
+      const errorAiMsg = {
+        id: `m${Date.now() + 1}`,
+        role: "assistant" as const,
+        content: `__error__:${errMsg}`,
+        mode: state.chatMode,
+      };
+      set({ messages: [...currentMessages, errorAiMsg], isThinking: false });
+    }
   };
 
   const handleSaveCase = async () => {
@@ -347,39 +384,46 @@ export function RxScreen() {
               );
             }
 
+            // Error message
+            if (msg.content.startsWith("__error__:")) {
+              return (
+                <div key={msg.id} style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "flex-start" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--major-bg)", border: "1.5px solid #F0CFCB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <AlertCircle size={14} color="var(--major-text)" />
+                  </div>
+                  <Card style={{ flex: 1, padding: "12px 16px", background: "var(--major-bg)", border: "1px solid #F0CFCB" }}>
+                    <div style={{ fontSize: 13, color: "var(--major-text)", fontWeight: 600, marginBottom: 4 }}>Something went wrong</div>
+                    <div style={{ fontSize: 12.5, color: "var(--major-text)", opacity: 0.8 }}>{msg.content.replace("__error__:", "")}</div>
+                  </Card>
+                </div>
+              );
+            }
+
             return (
               <div key={msg.id} style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "flex-start" }}>
                 {/* Avatar */}
-                <div
-                  style={{
-                    width: 30, height: 30, borderRadius: "50%",
-                    background: "var(--accent-soft)",
-                    border: "1.5px solid var(--accent-border)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--accent-soft)", border: "1.5px solid var(--accent-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <div style={{ width: 10, height: 6, borderRadius: 99, background: "var(--accent)", boxShadow: "inset -5px 0 0 var(--accent-dark)", transform: "rotate(-45deg)" }} />
                 </div>
                 <Card style={{ flex: 1, padding: "14px 16px" }}>
+                  {/* Severity + context (interaction) */}
                   {msg.severity && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                       <SeverityBadge sev={msg.severity} />
                       {msg.patientContext && (
                         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{msg.patientContext}</span>
                       )}
                     </div>
                   )}
-                  <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text-primary)", margin: 0, marginBottom: msg.counselling ? 14 : 0 }}>
+
+                  {/* Explanation */}
+                  <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text-primary)", margin: 0, marginBottom: (msg.counselling || msg.keyPoints) ? 14 : 0 }}>
                     {msg.content}
                   </p>
+
+                  {/* Patient counselling (interaction mode) */}
                   {msg.counselling && (
-                    <div
-                      style={{
-                        background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
-                        borderRadius: 9, padding: "12px 14px", marginBottom: 12,
-                      }}
-                    >
+                    <div style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 9, padding: "12px 14px", marginBottom: 12 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-soft-text)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                         Patient counselling
                       </div>
@@ -390,6 +434,22 @@ export function RxScreen() {
                       </ul>
                     </div>
                   )}
+
+                  {/* Key points (question mode) */}
+                  {msg.keyPoints && (
+                    <div style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 9, padding: "12px 14px", marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-soft-text)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        Key points
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 5 }}>
+                        {msg.keyPoints.map((p, i) => (
+                          <li key={i} style={{ fontSize: 13, color: "var(--accent-soft-text)", lineHeight: 1.5 }}>{p}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Sources + flag */}
                   {msg.sources && (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>Sources</span>
@@ -397,31 +457,16 @@ export function RxScreen() {
                         { url: msg.sources[0], label: "Wolters Kluwer CDI" },
                         { url: msg.sources[1], label: "Drugs.com" },
                       ].map((s) => (
-                        <a
-                          key={s.url}
-                          href={s.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: "flex", alignItems: "center", gap: 4,
-                            fontSize: 12.5, color: "var(--accent-soft-text)",
-                            background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
-                            borderRadius: 999, padding: "3px 10px", textDecoration: "none", fontWeight: 500,
-                          }}
+                        <a key={s.url} href={s.url} target="_blank" rel="noreferrer"
+                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--accent-soft-text)", background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 999, padding: "3px 10px", textDecoration: "none", fontWeight: 500 }}
                         >
                           <ExternalLink size={11} />
                           {s.label}
                         </a>
                       ))}
                       <button
-                        onClick={() => { showToast("Flagged for doctor follow-up"); }}
-                        style={{
-                          marginLeft: "auto",
-                          display: "flex", alignItems: "center", gap: 5,
-                          background: "none", border: "1px solid var(--border)",
-                          borderRadius: 8, padding: "4px 12px", cursor: "pointer",
-                          fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif",
-                        }}
+                        onClick={() => showToast("Flagged for doctor follow-up")}
+                        style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif" }}
                       >
                         <Flag size={11} />
                         Flag for doctor follow-up

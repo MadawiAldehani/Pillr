@@ -1,14 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useEffect } from "react";
 import { Plus, Download, X } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
-import { useApp, Severity, Case } from "@/app/store";
+import { useApp, Severity } from "@/app/store";
 
 export function CaseLogScreen() {
-  const { state, set, showToast } = useApp();
+  const { state, set, showToast, fetchCases, addCase } = useApp();
   const { cases, addOpen, addMeds, addSev, addDrp } = state;
+
+  useEffect(() => { fetchCases(); }, []);
 
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -16,39 +18,14 @@ export function CaseLogScreen() {
   const weekCount = cases.length; // simplified
   const monthCount = cases.length;
 
-  const handleQuickAdd = () => {
-    const now = new Date();
-    const newCase: Case = {
-      id: `c${Date.now()}`,
-      date: now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      time: now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-      meds: "",
-      severity: "None",
-      drp: false,
-      flagged: false,
-      counsel: "",
-      source: "Manual",
-      countOnly: true,
-    };
-    set({ cases: [newCase, ...cases] });
+  const handleQuickAdd = async () => {
+    await addCase({ meds: "", severity: "None", drp: false, flagged: false, counsel: "", source: "Manual", countOnly: true });
     showToast("Case count logged");
   };
 
-  const handleAddCase = () => {
-    const now = new Date();
-    const newCase: Case = {
-      id: `c${Date.now()}`,
-      date: now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      time: now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-      meds: addMeds,
-      severity: addSev,
-      drp: addDrp,
-      flagged: false,
-      counsel: "",
-      source: "Manual",
-      countOnly: !addMeds.trim(),
-    };
-    set({ cases: [newCase, ...cases], addOpen: false, addMeds: "", addSev: "None", addDrp: false });
+  const handleAddCase = async () => {
+    await addCase({ meds: addMeds, severity: addSev, drp: addDrp, flagged: false, counsel: "", source: "Manual", countOnly: !addMeds.trim() });
+    set({ addOpen: false, addMeds: "", addSev: "None", addDrp: false });
     showToast("Case added");
   };
 

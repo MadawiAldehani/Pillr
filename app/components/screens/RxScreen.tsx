@@ -29,7 +29,7 @@ function ThinkingDots() {
 }
 
 export function RxScreen() {
-  const { state, set, showToast } = useApp();
+  const { state, set, showToast, addCase } = useApp();
   const [input, setInput] = useState("");
   const [diseaseInput, setDiseaseInput] = useState("");
   const [allergyInput, setAllergyInput] = useState("");
@@ -78,23 +78,18 @@ export function RxScreen() {
     }, 1500);
   };
 
-  const handleSaveCase = () => {
+  const handleSaveCase = async () => {
     const lastAI = [...state.messages].reverse().find((m) => m.role === "assistant");
     if (!lastAI) return;
-    const now = new Date();
-    const newCase = {
-      id: `c${Date.now()}`,
-      date: now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      time: now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+    await addCase({
       meds: state.messages.findLast((m) => m.role === "user")?.content ?? "",
       severity: lastAI.severity ?? "None",
       drp: false,
       flagged: false,
       counsel: lastAI.counselling?.[0] ?? "",
-      source: "Rx" as const,
+      source: "Rx",
       countOnly: false,
-    };
-    set({ cases: [newCase, ...state.cases] });
+    });
     showToast("Case saved to log");
   };
 

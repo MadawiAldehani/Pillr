@@ -1,5 +1,7 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createClient } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 export type Screen =
   | "login"
@@ -49,6 +51,12 @@ export interface AppState {
   role: Role;
   termsChecked: boolean;
   userName: string;
+  userEmail: string;
+  authError: string;
+  authLoading: boolean;
+  supabaseUser: User | null;
+  avatarUrl: string | null;
+  avatarUploading: boolean;
 
   // Rx
   chatMode: ChatMode;
@@ -68,6 +76,7 @@ export interface AppState {
 
   // Case log
   cases: Case[];
+  casesLoading: boolean;
   addOpen: boolean;
   addMeds: string;
   addSev: Severity;
@@ -84,13 +93,6 @@ export interface AppState {
   // Search
   selectedDrug: string | null;
 }
-
-const initialCases: Case[] = [
-  { id: "c1", date: "27 Jun 2026", time: "09:14", meds: "Warfarin + Aspirin", severity: "Major", drp: true, flagged: true, counsel: "Monitor INR closely; risk of bleeding.", source: "Rx", countOnly: false },
-  { id: "c2", date: "26 Jun 2026", time: "14:32", meds: "Metformin + Ibuprofen", severity: "Moderate", drp: false, flagged: false, counsel: "Monitor renal function.", source: "Rx", countOnly: false },
-  { id: "c3", date: "26 Jun 2026", time: "11:05", meds: "Amoxicillin", severity: "Minor", drp: false, flagged: false, counsel: "Complete the full course.", source: "Manual", countOnly: false },
-  { id: "c4", date: "25 Jun 2026", time: "16:00", meds: "", severity: "None", drp: false, flagged: false, counsel: "", source: "Manual", countOnly: true },
-];
 
 const initialMessages: ChatMessage[] = [
   {
@@ -121,7 +123,13 @@ const initialState: AppState = {
   authMode: "signin",
   role: "Employee",
   termsChecked: false,
-  userName: "Reem Al-Saleh",
+  userName: "",
+  userEmail: "",
+  authError: "",
+  authLoading: false,
+  supabaseUser: null,
+  avatarUrl: null,
+  avatarUploading: false,
 
   chatMode: "interaction",
   isThinking: false,
@@ -141,7 +149,8 @@ const initialState: AppState = {
   clockedIn: false,
   clockTime: "08:00",
 
-  cases: initialCases,
+  cases: [],
+  casesLoading: false,
   addOpen: false,
   addMeds: "",
   addSev: "None",
@@ -161,12 +170,19 @@ interface AppContextType {
   set: (partial: Partial<AppState>) => void;
   showToast: (msg: string) => void;
   navigate: (screen: Screen) => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, role: Role) => Promise<void>;
+  signOut: () => Promise<void>;
+  fetchCases: () => Promise<void>;
+  addCase: (c: Omit<Case, "id" | "date" | "time">) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
+  const supabase = createClient();
 
   const set = (partial: Partial<AppState>) =>
     setState((s) => ({ ...s, ...partial }));
@@ -178,8 +194,160 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const navigate = (screen: Screen) => set({ screen, notifOpen: false });
 
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("avatar_url, full_name, role")
+      .eq("id", userId)
+      .single();
+    if (data) {
+      set({
+        avatarUrl: data.avatar_url || null,
+        userName: data.full_name || "",
+        role: data.role || "Employee",
+      });
+    }
+  };
+
+  // Restore session on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        set({
+          supabaseUser: session.user,
+          userName: session.user.user_metadata?.full_name || session.user.email || "",
+          userEmail: session.user.email || "",
+          role: session.user.user_metadata?.role || "Employee",
+          screen: "agreement",
+        });
+        fetchProfile(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        set({
+          supabaseUser: session.user,
+          userName: session.user.user_metadata?.full_name || session.user.email || "",
+          userEmail: session.user.email || "",
+          role: session.user.user_metadata?.role || "Employee",
+        });
+      } else {
+        set({ supabaseUser: null, userName: "", userEmail: "", screen: "login" });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    set({ authLoading: true, authError: "" });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      set({ authLoading: false, authError: error.message });
+    } else {
+      set({ authLoading: false, screen: "agreement" });
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName: string, role: Role) => {
+    set({ authLoading: true, authError: "" });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName, role } },
+    });
+    if (error) {
+      set({ authLoading: false, authError: error.message });
+    } else {
+      set({ authLoading: false, screen: "agreement" });
+    }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    set({ ...initialState });
+  };
+
+  const fetchCases = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    set({ casesLoading: true });
+    const { data, error } = await supabase
+      .from("cases")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) {
+      const mapped: Case[] = data.map((r) => ({
+        id: r.id,
+        date: new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        time: new Date(r.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        meds: r.medications || "",
+        severity: r.severity as Severity,
+        drp: r.drp,
+        flagged: r.flagged,
+        counsel: r.counselling || "",
+        source: r.source as "Rx" | "Manual",
+        countOnly: r.count_only,
+      }));
+      set({ cases: mapped });
+    }
+    set({ casesLoading: false });
+  };
+
+  const uploadAvatar = async (file: File) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    set({ avatarUploading: true });
+    const ext = file.name.split(".").pop();
+    const path = `${session.user.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("uploads")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) {
+      set({ avatarUploading: false });
+      return;
+    }
+    const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+    // Cache-bust so the browser picks up the new image immediately
+    const urlWithBust = `${publicUrl}?t=${Date.now()}`;
+    await supabase.from("profiles").update({ avatar_url: urlWithBust }).eq("id", session.user.id);
+    set({ avatarUrl: urlWithBust, avatarUploading: false });
+  };
+
+  const addCase = async (c: Omit<Case, "id" | "date" | "time">) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data, error } = await supabase.from("cases").insert({
+      user_id: session.user.id,
+      medications: c.meds,
+      severity: c.severity,
+      drp: c.drp,
+      flagged: c.flagged,
+      counselling: c.counsel,
+      source: c.source,
+      count_only: c.countOnly,
+    }).select().single();
+    if (!error && data) {
+      const newCase: Case = {
+        id: data.id,
+        date: new Date(data.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        time: new Date(data.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        meds: data.medications || "",
+        severity: data.severity,
+        drp: data.drp,
+        flagged: data.flagged,
+        counsel: data.counselling || "",
+        source: data.source,
+        countOnly: data.count_only,
+      };
+      set({ cases: [newCase, ...state.cases] });
+    }
+  };
+
   return (
-    <AppContext.Provider value={{ state, set, showToast, navigate }}>
+    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, fetchCases, addCase, uploadAvatar }}>
       {children}
     </AppContext.Provider>
   );

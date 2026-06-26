@@ -99,6 +99,12 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 
+/* Avatar hover */
+div:hover > .avatar-overlay { opacity: 1 !important; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Responsive: collapse sidebar at 840px */
 @media (max-width: 840px) {
   .sidebar { width: 60px !important; }

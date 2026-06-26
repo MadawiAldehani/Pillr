@@ -1,7 +1,8 @@
 "use client";
+import { useRef } from "react";
 import {
   LayoutDashboard, MessageSquare, Clock, List, Search,
-  Bell, Settings, LogOut,
+  Bell, Settings, LogOut, Camera, Loader,
 } from "lucide-react";
 import { PillLogo } from "@/app/components/ui/PillLogo";
 import { useApp, Screen } from "@/app/store";
@@ -18,9 +19,24 @@ const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
 
 const UNREAD = 3;
 
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
 export function Sidebar() {
-  const { state, navigate, set } = useApp();
-  const collapsed = false; // responsive collapse handled via CSS
+  const { state, navigate, set, signOut, uploadAvatar } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadAvatar(file);
+    e.target.value = "";
+  };
 
   return (
     <aside
@@ -32,9 +48,7 @@ export function Sidebar() {
         flexDirection: "column",
         height: "100%",
         position: "fixed",
-        left: 0,
-        top: 0,
-        bottom: 0,
+        left: 0, top: 0, bottom: 0,
         zIndex: 100,
       }}
       className="sidebar"
@@ -77,7 +91,6 @@ export function Sidebar() {
                 fontWeight: active ? 600 : 400,
                 fontSize: 13.5,
                 borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
-                position: "relative",
               }}
             >
               {item.icon}
@@ -113,41 +126,76 @@ export function Sidebar() {
           gap: 10,
         }}
       >
+        {/* Avatar — click to upload */}
         <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: "50%",
-            background: "var(--accent)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            fontSize: 12,
-            fontWeight: 700,
-            color: "#fff",
-            letterSpacing: "0.02em",
-          }}
+          style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}
+          onClick={() => fileInputRef.current?.click()}
+          title="Change profile picture"
         >
-          RA
+          {state.avatarUrl ? (
+            <img
+              src={state.avatarUrl}
+              alt="Profile"
+              style={{
+                width: 34, height: 34, borderRadius: "50%",
+                objectFit: "cover",
+                border: "2px solid rgba(255,255,255,0.2)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 34, height: 34, borderRadius: "50%",
+                background: "var(--accent)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 700, color: "#fff",
+                letterSpacing: "0.02em",
+              }}
+            >
+              {initials(state.userName) || "?"}
+            </div>
+          )}
+
+          {/* Overlay on hover / uploading */}
+          <div
+            style={{
+              position: "absolute", inset: 0, borderRadius: "50%",
+              background: "rgba(0,0,0,0.45)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: state.avatarUploading ? 1 : 0,
+              transition: "opacity 0.15s",
+            }}
+            className="avatar-overlay"
+          >
+            {state.avatarUploading
+              ? <Loader size={13} color="#fff" style={{ animation: "spin 1s linear infinite" }} />
+              : <Camera size={13} color="#fff" />
+            }
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: "none" }}
+            onChange={handleAvatarChange}
+          />
         </div>
+
         <div className="sidebar-label" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {state.userName}
+            {state.userName || "Pharmacist"}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11.5 }}>Pharmacist</div>
+          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11.5 }}>{state.role}</div>
         </div>
+
         <button
-          onClick={() => navigate("login")}
+          onClick={() => signOut()}
           title="Sign out"
           style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
+            background: "none", border: "none", cursor: "pointer",
             color: "rgba(255,255,255,0.45)",
-            display: "flex",
-            padding: 4,
-            borderRadius: 6,
+            display: "flex", padding: 4, borderRadius: 6,
           }}
           className="sidebar-label"
         >

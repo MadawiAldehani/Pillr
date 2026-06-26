@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* Accent — Teal (default) */
+  --accent:          #1D9E75;
+  --accent-dark:     #178A66;
+  --accent-soft:     #E7F4EE;
+  --accent-soft-text:#14694F;
+  --accent-border:   #CFE9DC;
+
+  /* Navy */
+  --navy:            #0F2438;
+  --navy-2:          #133048;
+
+  /* Text */
+  --text-primary:    #16202E;
+  --text-secondary:  #5A6675;
+  --text-muted:      #8A94A2;
+  --text-faint:      #C2C9D1;
+
+  /* Surfaces */
+  --page-bg:         #F4F6F8;
+  --card-bg:         #FFFFFF;
+  --subtle-bg:       #FBFCFD;
+  --border:          #E6E9ED;
+  --border-2:        #EDEFF2;
+  --input-border:    #DCE0E6;
+
+  /* Severity */
+  --major-text:      #C0392B;
+  --major-bg:        #FBE7E7;
+  --moderate-text:   #9A6A12;
+  --moderate-bg:     #FBF1DF;
+  --minor-text:      #0F7A52;
+  --minor-bg:        #E2F5EC;
+
+  /* Amber */
+  --amber-bg:        #FCF7EC;
+  --amber-border:    #F0DFC0;
+  --amber-text:      #7A540E;
+
+  /* On-call indigo */
+  --indigo-text:     #5B5BD6;
+  --indigo-bg:       #E4E7FA;
+  --indigo-border:   #C7CEEF;
+
+  /* Disabled */
+  --disabled:        #C7CDD4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono, .mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Toast animation */
+@keyframes pillrToast {
+  0%   { opacity: 0; transform: translateY(16px) translateX(-50%); }
+  12%  { opacity: 1; transform: translateY(0)    translateX(-50%); }
+  80%  { opacity: 1; transform: translateY(0)    translateX(-50%); }
+  100% { opacity: 0; transform: translateY(-8px) translateX(-50%); }
+}
+
+/* Panel fade */
+@keyframes pillrFade {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Thinking bounce */
+@keyframes pillrBounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%            { transform: translateY(-6px); }
+}
+
+.toast-animate {
+  animation: pillrToast 2.6s ease forwards;
+}
+
+.panel-animate {
+  animation: pillrFade 0.22s ease forwards;
+}
+
+.bounce-dot {
+  animation: pillrBounce 1.2s ease infinite;
+}
+
+/* Scrollbar minimal */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Responsive: collapse sidebar at 840px */
+@media (max-width: 840px) {
+  .sidebar { width: 60px !important; }
+  .sidebar-label { display: none !important; }
+  .main-content { margin-left: 60px !important; }
+  .chat-history { display: none !important; }
+}

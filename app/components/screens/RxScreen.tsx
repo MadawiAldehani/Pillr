@@ -28,9 +28,15 @@ function ThinkingDots() {
   );
 }
 
+// localStorage key — bump the suffix (v2, v3…) to re-show the notice after a policy change
+const AI_CONSENT_KEY = "pillr_rx_ai_consent_v1";
+
 export function RxScreen() {
   const { state, set, showToast, addCase } = useApp();
   const [input, setInput] = useState("");
+  const [consentDismissed, setConsentDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem(AI_CONSENT_KEY) === "1",
+  );
   const [diseaseInput, setDiseaseInput] = useState("");
   const [allergyInput, setAllergyInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -218,6 +224,48 @@ export function RxScreen() {
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+
+          {/* ── AI processing notice (OWASP LLM privacy — shown once until dismissed) ── */}
+          {!consentDismissed && (
+            <div style={{
+              background: "var(--amber-bg)",
+              border: "1px solid var(--amber-border)",
+              borderRadius: 10,
+              padding: "13px 16px",
+              marginBottom: 18,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+            }}>
+              <AlertCircle size={16} color="var(--amber-text)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)", marginBottom: 4 }}>
+                  External AI processing
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--amber-text)", lineHeight: 1.6, marginBottom: 10 }}>
+                  Queries and patient context (medications, age, sex, conditions) you enter here are sent to an external AI service for processing.{" "}
+                  <strong>Do not enter patient names, ID numbers, or any identifying information.</strong>
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.setItem(AI_CONSENT_KEY, "1");
+                    setConsentDismissed(true);
+                  }}
+                  style={{
+                    height: 30, padding: "0 14px",
+                    background: "var(--amber-text)", color: "#fff",
+                    border: "none", borderRadius: 7,
+                    cursor: "pointer",
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontWeight: 600, fontSize: 12,
+                  }}
+                >
+                  I understand
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Patient context (interaction mode only) */}
           {state.chatMode === "interaction" && (
             <Card style={{ marginBottom: 18 }}>

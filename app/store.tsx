@@ -11,6 +11,7 @@ export type Screen =
   | "duty"
   | "caselog"
   | "search"
+  | "feedback"
   | "admin"
   | "notifications";
 
@@ -33,6 +34,31 @@ export interface Case {
   countOnly: boolean;
 }
 
+export interface UserRow {
+  id: string;
+  fullName: string;
+  role: string;
+  joinedAt: string;
+  lastSeenAt: string | null;
+}
+
+export interface FeedbackItem {
+  id: string;
+  userName: string;
+  userRole: string;
+  category: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Shift {
+  id: string;
+  type: "day" | "on-call";
+  clockedInAt: string;   // ISO timestamp
+  clockedOutAt: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -50,6 +76,7 @@ export interface AppState {
   screen: Screen;
   authMode: AuthMode;
   role: Role;
+  isAdmin: boolean;
   termsChecked: boolean;
   userName: string;
   userEmail: string;
@@ -73,7 +100,18 @@ export interface AppState {
 
   // Duty
   clockedIn: boolean;
-  clockTime: string;
+  clockInTime: string | null;   // ISO timestamp of the active shift start
+  activeShiftId: string | null;
+  shifts: Shift[];
+  shiftsLoading: boolean;
+  viewYear: number;
+  viewMonth: number; // 0-11
+  dayShiftStart: string;   // default "08:00"
+  dayShiftEnd: string;     // default "15:00"
+  onCallOpen: boolean;
+  onCallDate: string;      // "YYYY-MM-DD"
+  onCallStart: string;     // "HH:MM"
+  onCallEnd: string;       // "HH:MM"
 
   // Case log
   cases: Case[];
@@ -93,6 +131,14 @@ export interface AppState {
 
   // Search
   selectedDrug: string | null;
+
+  // Admin
+  userRows: UserRow[];
+  usersLoading: boolean;
+
+  // Feedback
+  feedbackItems: FeedbackItem[];
+  unreadFeedbackCount: number;
 }
 
 const initialMessages: ChatMessage[] = [
@@ -123,6 +169,7 @@ const initialState: AppState = {
   screen: "login",
   authMode: "signin",
   role: "Employee",
+  isAdmin: false,
   termsChecked: false,
   userName: "",
   userEmail: "",
@@ -148,7 +195,18 @@ const initialState: AppState = {
   activeHistoryId: "h1",
 
   clockedIn: false,
-  clockTime: "08:00",
+  clockInTime: null,
+  activeShiftId: null,
+  shifts: [],
+  shiftsLoading: false,
+  viewYear: new Date().getFullYear(),
+  viewMonth: new Date().getMonth(),
+  dayShiftStart: "08:00",
+  dayShiftEnd: "15:00",
+  onCallOpen: false,
+  onCallDate: "",
+  onCallStart: "20:00",
+  onCallEnd: "03:00",
 
   cases: [],
   casesLoading: false,
@@ -164,6 +222,12 @@ const initialState: AppState = {
   toastMsg: "",
 
   selectedDrug: null,
+
+  userRows: [],
+  usersLoading: false,
+
+  feedbackItems: [],
+  unreadFeedbackCount: 0,
 };
 
 interface AppContextType {
@@ -177,6 +241,14 @@ interface AppContextType {
   fetchCases: () => Promise<void>;
   addCase: (c: Omit<Case, "id" | "date" | "time">) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
+  fetchShifts: (year: number, month: number) => Promise<void>;
+  clockIn: () => Promise<void>;
+  clockOut: (shiftId: string) => Promise<void>;
+  addOnCallShift: (dateStr: string, startTime: string, endTime: string) => Promise<void>;
+  submitFeedback: (category: string, message: string) => Promise<void>;
+  fetchFeedback: () => Promise<void>;
+  markFeedbackRead: (id: string) => Promise<void>;
+  fetchUsers: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -193,12 +265,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => set({ toastOn: false, toastMsg: "" }), 2700);
   };
 
-  const navigate = (screen: Screen) => set({ screen, notifOpen: false });
+  const navigate = (screen: Screen) => {
+    setState((s) => {
+      // Only admins can navigate to the admin screen
+      if (screen === "admin" && !s.isAdmin) return s;
+      return { ...s, screen, notifOpen: false };
+    });
+  };
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("avatar_url, full_name, role")
+      .select("avatar_url, full_name, role, is_admin")
       .eq("id", userId)
       .single();
     if (data) {
@@ -206,8 +284,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         avatarUrl: data.avatar_url || null,
         userName: data.full_name || "",
         role: data.role || "Employee",
+        isAdmin: data.is_admin === true,
       });
     }
+    // Stamp last_seen_at so admin can track active users
+    await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", userId);
   };
 
   // Restore session on mount
@@ -218,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           supabaseUser: session.user,
           userName: session.user.user_metadata?.full_name || session.user.email || "",
           userEmail: session.user.email || "",
-          role: session.user.user_metadata?.role || "Employee",
+          // role is never read from user-editable JWT metadata — fetchProfile reads it from DB
           screen: "agreement",
         });
         fetchProfile(session.user.id);
@@ -231,8 +312,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           supabaseUser: session.user,
           userName: session.user.user_metadata?.full_name || session.user.email || "",
           userEmail: session.user.email || "",
-          role: session.user.user_metadata?.role || "Employee",
+          // role is never read from user-editable JWT metadata — fetchProfile reads it from DB
         });
+        // Always fetch the profile so is_admin (and avatar) are loaded on every sign-in
+        fetchProfile(session.user.id);
       } else {
         set({ supabaseUser: null, userName: "", userEmail: "", screen: "login" });
       }
@@ -244,29 +327,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     set({ authLoading: true, authError: "" });
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      set({ authLoading: false, authError: error.message });
+      // Normalize error — never expose raw Supabase messages (prevents user enumeration)
+      set({ authLoading: false, authError: "Invalid email or password. Please try again." });
     } else {
+      if (data.user) {
+        // Fetch profile (including is_admin) before navigating so the sidebar renders correctly
+        await fetchProfile(data.user.id);
+        // Audit log — fire-and-forget, must not block the sign-in flow
+        supabase.from("audit_log").insert({ user_id: data.user.id, event: "sign_in" });
+      }
       set({ authLoading: false, screen: "agreement" });
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: Role) => {
     set({ authLoading: true, authError: "" });
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName, role } },
     });
     if (error) {
-      set({ authLoading: false, authError: error.message });
+      // Normalize error — never expose raw Supabase messages
+      const msg = error.message.toLowerCase();
+      const friendly =
+        msg.includes("already registered") || msg.includes("already exists")
+          ? "An account with this email already exists."
+          : "Could not create account. Please try again.";
+      set({ authLoading: false, authError: friendly });
     } else {
+      if (data.user) {
+        supabase.from("audit_log").insert({ user_id: data.user.id, event: "sign_up" });
+      }
       set({ authLoading: false, screen: "agreement" });
     }
   };
 
   const signOut = async () => {
+    // Audit log before clearing the session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      supabase.from("audit_log").insert({ user_id: session.user.id, event: "sign_out" });
+    }
     await supabase.auth.signOut();
     set({ ...initialState });
   };
@@ -300,6 +404,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const uploadAvatar = async (file: File) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
+
+    // Client-side MIME and size guard (Supabase Storage bucket policy is the server-side enforcer)
+    const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    if (!ALLOWED_MIME.has(file.type)) {
+      showToast("Only JPEG, PNG, WebP, and GIF images are allowed");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image must be smaller than 5 MB");
+      return;
+    }
+
     set({ avatarUploading: true });
     const ext = file.name.split(".").pop();
     const path = `${session.user.id}/avatar.${ext}`;
@@ -347,8 +463,195 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchShifts = async (year: number, month: number) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const start = new Date(year, month, 1).toISOString();
+    const end   = new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
+    const { data } = await supabase
+      .from("shifts")
+      .select("*")
+      .gte("clocked_in_at", start)
+      .lte("clocked_in_at", end)
+      .order("clocked_in_at");
+    if (data) {
+      const mapped: Shift[] = data.map((r) => ({
+        id: r.id,
+        type: r.type as "day" | "on-call",
+        clockedInAt: r.clocked_in_at,
+        clockedOutAt: r.clocked_out_at || null,
+      }));
+      const openShift = mapped.find((s) => !s.clockedOutAt);
+      setState((s) => ({
+        ...s,
+        shifts: mapped,
+        clockedIn: !!openShift,
+        activeShiftId: openShift?.id || null,
+        clockInTime: openShift?.clockedInAt || null,
+      }));
+    }
+  };
+
+  const clockIn = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data, error } = await supabase.from("shifts").insert({
+      user_id: session.user.id,
+      type: "day",
+    }).select().single();
+    if (!error && data) {
+      const newShift: Shift = {
+        id: data.id, type: "day",
+        clockedInAt: data.clocked_in_at, clockedOutAt: null,
+      };
+      setState((s) => ({
+        ...s,
+        clockedIn: true,
+        activeShiftId: data.id,
+        clockInTime: data.clocked_in_at,
+        shifts: [...s.shifts, newShift],
+      }));
+    }
+  };
+
+  const clockOut = async (shiftId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("shifts")
+      .update({ clocked_out_at: now })
+      .eq("id", shiftId)
+      .eq("user_id", session.user.id);   // IDOR fix: only update own shifts
+    if (!error) {
+      setState((s) => ({
+        ...s,
+        clockedIn: false,
+        activeShiftId: null,
+        clockInTime: null,
+        shifts: s.shifts.map((sh) => sh.id === shiftId ? { ...sh, clockedOutAt: now } : sh),
+      }));
+    }
+  };
+
+  const addOnCallShift = async (dateStr: string, startTime: string, endTime: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const [sH, sM] = startTime.split(":").map(Number);
+    const [eH, eM] = endTime.split(":").map(Number);
+    const base = new Date(dateStr);
+    const clockedInAt  = new Date(base); clockedInAt.setHours(sH, sM, 0, 0);
+    const clockedOutAt = new Date(base); clockedOutAt.setHours(eH, eM, 0, 0);
+    // Handle overnight on-call (e.g. 20:00 – 03:00 next day)
+    if (eH < sH) clockedOutAt.setDate(clockedOutAt.getDate() + 1);
+    const { data, error } = await supabase.from("shifts").insert({
+      user_id: session.user.id,
+      type: "on-call",
+      clocked_in_at:  clockedInAt.toISOString(),
+      clocked_out_at: clockedOutAt.toISOString(),
+    }).select().single();
+    if (!error && data) {
+      setState((s) => ({
+        ...s,
+        shifts: [...s.shifts, {
+          id: data.id,
+          type: "on-call",
+          clockedInAt:  data.clocked_in_at,
+          clockedOutAt: data.clocked_out_at,
+        }],
+        onCallOpen: false,
+      }));
+    }
+  };
+
+  const fetchUsers = async () => {
+    // Server-side admin guard — verify from DB, not client state
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data: adminCheck } = await supabase
+      .from("profiles").select("is_admin").eq("id", session.user.id).single();
+    if (!adminCheck?.is_admin) return;
+
+    set({ usersLoading: true });
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, role, created_at, last_seen_at")
+      .order("last_seen_at", { ascending: false, nullsFirst: false });
+    if (data) {
+      set({
+        userRows: data.map((r) => ({
+          id:          r.id,
+          fullName:    r.full_name || "—",
+          role:        r.role || "Employee",
+          joinedAt:    r.created_at,
+          lastSeenAt:  r.last_seen_at || null,
+        })),
+      });
+    }
+    set({ usersLoading: false });
+  };
+
+  const submitFeedback = async (category: string, message: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.from("feedback").insert({
+      user_id:   session.user.id,
+      user_name: state.userName,
+      user_role: state.role,
+      category,
+      message,
+    });
+  };
+
+  const fetchFeedback = async () => {
+    // Server-side admin guard — verify from DB, not client state
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data: adminCheck } = await supabase
+      .from("profiles").select("is_admin").eq("id", session.user.id).single();
+    if (!adminCheck?.is_admin) return;
+
+    const { data } = await supabase
+      .from("feedback")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) {
+      const items: FeedbackItem[] = data.map((r) => ({
+        id:        r.id,
+        userName:  r.user_name || "Unknown",
+        userRole:  r.user_role || "",
+        category:  r.category,
+        message:   r.message,
+        read:      r.read,
+        createdAt: r.created_at,
+      }));
+      set({
+        feedbackItems: items,
+        unreadFeedbackCount: items.filter((i) => !i.read).length,
+      });
+    }
+  };
+
+  const markFeedbackRead = async (id: string) => {
+    // Verify the caller is an authenticated admin before touching feedback
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", session.user.id)
+      .single();
+    if (!profile?.is_admin) return;   // silent no-op for non-admins
+
+    await supabase.from("feedback").update({ read: true }).eq("id", id);
+    setState((s) => ({
+      ...s,
+      feedbackItems: s.feedbackItems.map((i) => i.id === id ? { ...i, read: true } : i),
+      unreadFeedbackCount: Math.max(0, s.unreadFeedbackCount - 1),
+    }));
+  };
+
   return (
-    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, fetchCases, addCase, uploadAvatar }}>
+    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, fetchCases, addCase, uploadAvatar, fetchShifts, clockIn, clockOut, addOnCallShift, submitFeedback, fetchFeedback, markFeedbackRead, fetchUsers }}>
       {children}
     </AppContext.Provider>
   );

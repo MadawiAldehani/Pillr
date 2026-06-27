@@ -9,6 +9,7 @@ import { DutyScreen } from "@/app/components/screens/DutyScreen";
 import { CaseLogScreen } from "@/app/components/screens/CaseLogScreen";
 import { SearchScreen } from "@/app/components/screens/SearchScreen";
 import { AdminScreen } from "@/app/components/screens/AdminScreen";
+import { FeedbackScreen } from "@/app/components/screens/FeedbackScreen";
 
 function ScreenRouter() {
   const { state } = useApp();
@@ -18,6 +19,7 @@ function ScreenRouter() {
     case "duty":      return <DutyScreen />;
     case "caselog":   return <CaseLogScreen />;
     case "search":    return <SearchScreen />;
+    case "feedback":  return <FeedbackScreen />;
     case "admin":     return <AdminScreen />;
     default:          return <DashboardScreen />;
   }

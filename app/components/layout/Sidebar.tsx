@@ -2,19 +2,20 @@
 import { useRef } from "react";
 import {
   LayoutDashboard, MessageSquare, Clock, List, Search,
-  Bell, Settings, LogOut, Camera, Loader,
+  Bell, Settings, LogOut, Camera, Loader, MessageCircle,
 } from "lucide-react";
 import { PillLogo } from "@/app/components/ui/PillLogo";
 import { useApp, Screen } from "@/app/store";
 
-const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
+const baseNavItems: { id: Screen; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { id: "dashboard",     label: "Dashboard",     icon: <LayoutDashboard size={18} strokeWidth={1.8} /> },
   { id: "rx",            label: "Rx Assistant",  icon: <MessageSquare    size={18} strokeWidth={1.8} /> },
   { id: "duty",          label: "Duty tracker",  icon: <Clock            size={18} strokeWidth={1.8} /> },
   { id: "caselog",       label: "Case log",      icon: <List             size={18} strokeWidth={1.8} /> },
   { id: "search",        label: "Search",        icon: <Search           size={18} strokeWidth={1.8} /> },
   { id: "notifications", label: "Notifications", icon: <Bell             size={18} strokeWidth={1.8} /> },
-  { id: "admin",         label: "Admin",         icon: <Settings         size={18} strokeWidth={1.8} /> },
+  { id: "feedback",      label: "Feedback",      icon: <MessageCircle    size={18} strokeWidth={1.8} /> },
+  { id: "admin",         label: "Admin",         icon: <Settings         size={18} strokeWidth={1.8} />, adminOnly: true },
 ];
 
 const UNREAD = 3;
@@ -31,6 +32,9 @@ function initials(name: string) {
 export function Sidebar() {
   const { state, navigate, set, signOut, uploadAvatar } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Only show admin nav item to admins
+  const navItems = baseNavItems.filter((item) => !item.adminOnly || state.isAdmin);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

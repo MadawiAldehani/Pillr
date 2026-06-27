@@ -5,9 +5,46 @@ import { PillLogo } from "@/app/components/ui/PillLogo";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { useApp } from "@/app/store";
 
+/**
+ * Check a password against the HaveIBeenPwned Pwned Passwords API using
+ * k-anonymity: only the first 5 characters of the SHA-1 hash are sent,
+ * so the actual password never leaves the device.
+ * Fails open — returns false if the API is unreachable so sign-up is never blocked.
+ */
+async function isPasswordBreached(password: string): Promise<boolean> {
+  try {
+    const encoded    = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest("SHA-1", encoded);
+    const hashHex    = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+
+    const prefix = hashHex.slice(0, 5);   // sent to API (k-anonymity)
+    const suffix = hashHex.slice(5);       // checked locally
+
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { "Add-Padding": "true" },  // prevents response-size traffic analysis
+    });
+    if (!res.ok) return false;
+
+    const text = await res.text();
+    for (const line of text.split("\n")) {
+      const [lineSuffix, countStr] = line.split(":");
+      if (lineSuffix.trim().toUpperCase() === suffix && parseInt(countStr, 10) > 0) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false; // fail-open: network issues must not block registration
+  }
+}
+
 export function LoginScreen() {
   const { state, set, signIn, signUp } = useApp();
   const [showPw, setShowPw] = useState(false);
+  const [breachChecking, setBreachChecking] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -16,12 +53,37 @@ export function LoginScreen() {
 
   const handleSubmit = async () => {
     if (isSignup) {
+      if (!fullName.trim()) {
+        set({ authError: "Please enter your full name" });
+        return;
+      }
+      if (!email.trim()) {
+        set({ authError: "Please enter your email address" });
+        return;
+      }
+      // ASVS 5.0 §2.1.1 — minimum 12 characters
+      if (password.length < 12) {
+        set({ authError: "Password must be at least 12 characters" });
+        return;
+      }
       if (password !== confirmPw) {
         set({ authError: "Passwords do not match" });
         return;
       }
+      // Check against HaveIBeenPwned — password never leaves the device (k-anonymity)
+      setBreachChecking(true);
+      const breached = await isPasswordBreached(password);
+      setBreachChecking(false);
+      if (breached) {
+        set({ authError: "This password has appeared in a known data breach. Please choose a different password." });
+        return;
+      }
       await signUp(email, password, fullName, state.role);
     } else {
+      if (!email.trim() || !password) {
+        set({ authError: "Please enter your email and password" });
+        return;
+      }
       await signIn(email, password);
     }
   };
@@ -183,21 +245,21 @@ export function LoginScreen() {
         {/* Submit */}
         <button
           onClick={handleSubmit}
-          disabled={state.authLoading}
+          disabled={state.authLoading || breachChecking}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             width: "100%", height: 44, marginTop: 22,
             borderRadius: 10, border: "none",
-            cursor: state.authLoading ? "not-allowed" : "pointer",
+            cursor: (state.authLoading || breachChecking) ? "not-allowed" : "pointer",
             fontFamily: "'IBM Plex Sans', sans-serif",
             fontWeight: 600, fontSize: 14,
-            background: state.authLoading ? "var(--disabled)" : "var(--accent)",
+            background: (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)",
             color: "#fff", transition: "background 0.15s",
           }}
-          onMouseEnter={(e) => !state.authLoading && (e.currentTarget.style.background = "var(--accent-dark)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = state.authLoading ? "var(--disabled)" : "var(--accent)")}
+          onMouseEnter={(e) => !(state.authLoading || breachChecking) && (e.currentTarget.style.background = "var(--accent-dark)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)")}
         >
-          {state.authLoading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
+          {breachChecking ? "Checking password safety…" : state.authLoading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
         </button>
 
         {/* Toggle */}

@@ -24,8 +24,9 @@ export type PatientPreg = "Not pregnant" | "Pregnant" | "Breastfeeding";
 
 export interface Case {
   id: string;
-  date: string;
-  time: string;
+  date: string;      // formatted "28 Jun 2025"
+  time: string;      // formatted "20:00"
+  createdAt: string; // ISO timestamp for date math
   meds: string;
   severity: Severity;
   drp: boolean;
@@ -249,7 +250,7 @@ interface AppContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   fetchCases: () => Promise<void>;
-  addCase: (c: Omit<Case, "id" | "date" | "time">) => Promise<void>;
+  addCase: (c: Omit<Case, "id" | "date" | "time" | "createdAt">) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   fetchShifts: (year: number, month: number) => Promise<void>;
   clockIn: () => Promise<void>;
@@ -415,6 +416,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: r.id,
         date: new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
         time: new Date(r.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        createdAt: r.created_at,
         meds: r.medications || "",
         severity: r.severity as Severity,
         drp: r.drp,
@@ -460,7 +462,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     set({ avatarUrl: urlWithBust, avatarUploading: false });
   };
 
-  const addCase = async (c: Omit<Case, "id" | "date" | "time">) => {
+  const addCase = async (c: Omit<Case, "id" | "date" | "time" | "createdAt">) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     const { data, error } = await supabase.from("cases").insert({
@@ -478,6 +480,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: data.id,
         date: new Date(data.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
         time: new Date(data.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        createdAt: data.created_at,
         meds: data.medications || "",
         severity: data.severity,
         drp: data.drp,
@@ -560,28 +563,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addOnCallShift = async (dateStr: string, startTime: string, endTime: string) => {
+  const addOnCallShift = async (dateStr: string, startTime: string, endTime: string): Promise<void> => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    const [sH, sM] = startTime.split(":").map(Number);
-    const [eH, eM] = endTime.split(":").map(Number);
-    const base = new Date(dateStr);
-    const clockedInAt  = new Date(base); clockedInAt.setHours(sH, sM, 0, 0);
-    const clockedOutAt = new Date(base); clockedOutAt.setHours(eH, eM, 0, 0);
-    // Handle overnight on-call (e.g. 20:00 – 03:00 next day)
-    if (eH < sH) clockedOutAt.setDate(clockedOutAt.getDate() + 1);
+    if (!session) throw new Error("Not authenticated — please sign in again.");
+
+    // Use local datetime strings so JS parses as local time, not UTC.
+    // "2025-06-28T20:00:00" (no Z suffix) → local midnight-based arithmetic.
+    const clockedInAt  = new Date(`${dateStr}T${startTime}:00`);
+    const clockedOutAt = new Date(`${dateStr}T${endTime}:00`);
+
+    // Overnight shift: if end ≤ start push end to next calendar day
+    if (clockedOutAt <= clockedInAt) {
+      clockedOutAt.setDate(clockedOutAt.getDate() + 1);
+    }
+
     const { data, error } = await supabase.from("shifts").insert({
-      user_id: session.user.id,
-      type: "on-call",
+      user_id:        session.user.id,
+      type:           "on-call",
       clocked_in_at:  clockedInAt.toISOString(),
       clocked_out_at: clockedOutAt.toISOString(),
     }).select().single();
-    if (!error && data) {
+
+    if (error) throw new Error(error.message);
+
+    if (data) {
       setState((s) => ({
         ...s,
         shifts: [...s.shifts, {
-          id: data.id,
-          type: "on-call",
+          id:           data.id,
+          type:         "on-call" as const,
           clockedInAt:  data.clocked_in_at,
           clockedOutAt: data.clocked_out_at,
         }],

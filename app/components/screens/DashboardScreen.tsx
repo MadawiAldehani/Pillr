@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { MessageSquare, FileText, AlertTriangle } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
@@ -17,7 +18,7 @@ function StatCard({
       </div>
       <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, marginBottom: sub ? 4 : 0 }}>
         {value}
-        {total && (
+        {total !== undefined && (
           <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-faint)" }}>/{total}</span>
         )}
       </div>
@@ -39,14 +40,64 @@ function StatCard({
   );
 }
 
-const flaggedCases = [
-  { id: "c1", drug: "Warfarin + Aspirin", severity: "Major" as const },
-];
-
 export function DashboardScreen() {
-  const { state, navigate, set, showToast } = useApp();
-  const resolvedFlagged = flaggedCases.filter((c) => !state.resolvedIds.includes(c.id));
-  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const { state, navigate, set, showToast, fetchShifts, fetchCases } = useApp();
+
+  const now = new Date();
+  const today = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // Load data on mount
+  useEffect(() => {
+    fetchCases();
+    fetchShifts(now.getFullYear(), now.getMonth());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Computed stats ──────────────────────────────────────────────────────────
+
+  // Helper: get local YYYY-MM-DD string from a Date
+  const localDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const monthStart    = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+  const daysInMonth    = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+  // Cases
+  const casesThisMonth  = state.cases.filter(c => new Date(c.createdAt).getTime() >= monthStart);
+  const casesLastMonth  = state.cases.filter(c => {
+    const t = new Date(c.createdAt).getTime();
+    return t >= lastMonthStart && t <= lastMonthEnd;
+  });
+  const casesDelta      = casesThisMonth.length - casesLastMonth.length;
+  const drpsThisMonth   = casesThisMonth.filter(c => c.drp).length;
+
+  // Shifts — on-call count this month
+  const monthOnCallCount = state.shifts.filter(s => s.type === "on-call").length;
+
+  // Hours logged today (all shift types)
+  const todayStr    = localDateStr(now);
+  const todayShifts = state.shifts.filter(s => localDateStr(new Date(s.clockedInAt)) === todayStr);
+  const hoursToday  = todayShifts.reduce((sum, s) => {
+    const ms = (s.clockedOutAt ? new Date(s.clockedOutAt) : now).getTime()
+      - new Date(s.clockedInAt).getTime();
+    return sum + ms / 3_600_000;
+  }, 0);
+
+  // Shift compliance: unique days with ≥1 shift / days elapsed this month
+  const daysWithShifts = new Set(state.shifts.map(s => localDateStr(new Date(s.clockedInAt)))).size;
+  const daysPassed     = now.getDate();
+  const compliance     = state.shifts.length === 0
+    ? 0
+    : Math.min(100, Math.round((daysWithShifts / Math.max(1, daysPassed)) * 100));
+  const complianceLabel = compliance >= 80 ? "On track" : compliance >= 50 ? "At risk" : "Needs attention";
+  const complianceColor = compliance >= 80 ? "var(--accent)" : "var(--amber-text)";
+
+  // Flagged cases that haven't been resolved yet (exclude count-only entries)
+  const resolvedFlagged = state.cases.filter(
+    c => c.flagged && !c.countOnly && !state.resolvedIds.includes(c.id)
+  );
 
   return (
     <div style={{ padding: "clamp(18px,3vw,26px) clamp(16px,3.5vw,32px)" }}>
@@ -75,10 +126,24 @@ export function DashboardScreen() {
 
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px,1fr))", gap: 12, marginBottom: 16 }}>
-        <StatCard label="On-call shifts" value={6} total={30} progress={6} />
-        <StatCard label="Hours today" value="5.5" total={7} progress={5.5} />
-        <StatCard label="Cases this month" value={34} sub="+6 vs last month" />
-        <StatCard label="DRPs caught" value={12} />
+        <StatCard
+          label="On-call shifts"
+          value={monthOnCallCount}
+          total={daysInMonth}
+          progress={monthOnCallCount}
+        />
+        <StatCard
+          label="Hours today"
+          value={hoursToday > 0 ? hoursToday.toFixed(1) : "0"}
+          total={7}
+          progress={Math.min(hoursToday, 7)}
+        />
+        <StatCard
+          label="Cases this month"
+          value={casesThisMonth.length}
+          sub={`${casesDelta >= 0 ? "+" : ""}${casesDelta} vs last month`}
+        />
+        <StatCard label="DRPs caught" value={drpsThisMonth} />
       </div>
 
       {/* Compliance banner */}
@@ -86,13 +151,13 @@ export function DashboardScreen() {
         <div
           style={{
             width: 8, height: 8, borderRadius: "50%",
-            background: "var(--accent)", flexShrink: 0,
+            background: complianceColor, flexShrink: 0,
           }}
         />
         <div style={{ flex: 1, minWidth: 120 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 5 }}>Shift compliance</div>
           <div style={{ height: 5, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: "94%", background: "var(--accent)", borderRadius: 99 }} />
+            <div style={{ height: "100%", width: `${compliance}%`, background: complianceColor, borderRadius: 99, transition: "width 0.4s" }} />
           </div>
         </div>
         <span
@@ -101,7 +166,7 @@ export function DashboardScreen() {
             borderRadius: 999, padding: "3px 12px", fontSize: 12.5, fontWeight: 600,
           }}
         >
-          On track · 94%
+          {complianceLabel} · {compliance}%
         </span>
       </Card>
 
@@ -142,7 +207,7 @@ export function DashboardScreen() {
                       fontSize: 13, color: "var(--text-primary)", flex: 1,
                     }}
                   >
-                    {c.drug}
+                    {c.meds}
                   </span>
                   <SeverityBadge sev={c.severity} />
                   <button

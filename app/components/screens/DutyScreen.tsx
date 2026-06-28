@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Pencil, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Pencil, X, AlertCircle } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { useApp } from "@/app/store";
 
@@ -36,6 +36,7 @@ export function DutyScreen() {
   const [elapsed, setElapsed] = useState("");
   const [busy, setBusy] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
+  const [onCallError, setOnCallError] = useState("");
   const [tmpStart, setTmpStart] = useState(dayShiftStart);
   const [tmpEnd,   setTmpEnd]   = useState(dayShiftEnd);
 
@@ -111,16 +112,22 @@ export function DutyScreen() {
     const d = new Date(viewYear, viewMonth, day);
     const pad = (n: number) => String(n).padStart(2, "0");
     const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    setOnCallError("");
     set({ onCallOpen: true, onCallDate: dateStr });
   };
 
   const handleAddOnCall = async () => {
     if (!onCallDate) return;
+    setOnCallError("");
     setBusy(true);
     try {
       await addOnCallShift(onCallDate, onCallStart, onCallEnd);
       showToast("On-call shift added");
-    } finally { setBusy(false); }
+    } catch (e: unknown) {
+      setOnCallError(e instanceof Error ? e.message : "Could not save shift. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -220,6 +227,7 @@ export function DutyScreen() {
           onClick={() => {
             const d = today;
             const pad = (n: number) => String(n).padStart(2, "0");
+            setOnCallError("");
             set({
               onCallOpen: true,
               onCallDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
@@ -406,7 +414,7 @@ export function DutyScreen() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <span style={{ fontSize: 15, fontWeight: 700 }}>Add on-call shift</span>
-              <button onClick={() => set({ onCallOpen: false })} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
+              <button onClick={() => { setOnCallError(""); set({ onCallOpen: false }); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
                 <X size={18} />
               </button>
             </div>
@@ -447,6 +455,19 @@ export function DutyScreen() {
                 Overnight shifts (e.g. 20:00 – 03:00) are handled automatically.
               </div>
             </div>
+
+            {onCallError && (
+              <div
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  background: "var(--major-bg)", border: "1px solid #F0CFCB",
+                  borderRadius: 8, padding: "9px 12px", marginTop: 12,
+                }}
+              >
+                <AlertCircle size={14} color="var(--major-text)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <span style={{ fontSize: 12.5, color: "var(--major-text)", lineHeight: 1.5 }}>{onCallError}</span>
+              </div>
+            )}
 
             <button
               onClick={handleAddOnCall}

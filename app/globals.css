@@ -105,10 +105,36 @@ div:hover > .avatar-overlay { opacity: 1 !important; }
 /* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Responsive: collapse sidebar at 840px */
+/* Tablet (641 – 840 px): icon-only sidebar */
 @media (max-width: 840px) {
-  .sidebar { width: 60px !important; }
+  .sidebar       { width: 60px !important; }
   .sidebar-label { display: none !important; }
-  .main-content { margin-left: 60px !important; }
-  .chat-history { display: none !important; }
+  .main-content  { margin-left: 60px !important; }
+  .chat-history  { display: none !important; }
+}
+
+/* ── Bottom nav (rendered but hidden by default; shown on mobile) ─────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--navy);
+  border-top: 1px solid rgba(255,255,255,0.10);
+  z-index: 300;
+  align-items: center;
+  justify-content: space-around;
+  /* Reserve space for iPhone home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.20);
+}
+
+/* Mobile (≤ 640 px): hide sidebar, show bottom nav */
+@media (max-width: 640px) {
+  .sidebar      { display: none !important; }
+  .main-content {
+    margin-left: 0 !important;
+    /* push content above bottom nav + iPhone home bar */
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .bottom-nav   { display: flex !important; }
 }

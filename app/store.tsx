@@ -13,7 +13,8 @@ export type Screen =
   | "search"
   | "feedback"
   | "admin"
-  | "notifications";
+  | "notifications"
+  | "resetpassword";
 
 export type AuthMode = "signin" | "signup";
 export type Role = "Employee" | "Student";
@@ -238,6 +239,8 @@ interface AppContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: Role) => Promise<void>;
   signOut: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   fetchCases: () => Promise<void>;
   addCase: (c: Omit<Case, "id" | "date" | "time">) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
@@ -307,6 +310,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // User followed a password-reset link — show the new-password form
+      if (_event === "PASSWORD_RECOVERY") {
+        set({ screen: "resetpassword" });
+        return;
+      }
       if (session?.user) {
         set({
           supabaseUser: session.user,
@@ -363,6 +371,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       set({ authLoading: false, screen: "agreement" });
     }
+  };
+
+  const sendPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: typeof window !== "undefined" ? window.location.origin : "https://pillr-kohl.vercel.app",
+    });
+    if (error) throw new Error("Could not send reset email. Please try again.");
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw new Error("Could not update password. Please try again.");
   };
 
   const signOut = async () => {
@@ -651,7 +671,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, fetchCases, addCase, uploadAvatar, fetchShifts, clockIn, clockOut, addOnCallShift, submitFeedback, fetchFeedback, markFeedbackRead, fetchUsers }}>
+    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, sendPasswordReset, updatePassword, fetchCases, addCase, uploadAvatar, fetchShifts, clockIn, clockOut, addOnCallShift, submitFeedback, fetchFeedback, markFeedbackRead, fetchUsers }}>
       {children}
     </AppContext.Provider>
   );

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 import { PillLogo } from "@/app/components/ui/PillLogo";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { useApp } from "@/app/store";
@@ -42,14 +42,36 @@ async function isPasswordBreached(password: string): Promise<boolean> {
 }
 
 export function LoginScreen() {
-  const { state, set, signIn, signUp } = useApp();
+  const { state, set, signIn, signUp, sendPasswordReset } = useApp();
   const [showPw, setShowPw] = useState(false);
   const [breachChecking, setBreachChecking] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [fullName, setFullName] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState("");
   const isSignup = state.authMode === "signup";
+
+  const handleForgot = async () => {
+    setForgotError("");
+    if (!forgotEmail.trim()) {
+      setForgotError("Please enter your email address");
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await sendPasswordReset(forgotEmail.trim());
+      setForgotSent(true);
+    } catch (e: unknown) {
+      setForgotError(e instanceof Error ? e.message : "Could not send reset email. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (isSignup) {
@@ -148,134 +170,245 @@ export function LoginScreen() {
             <PillLogo />
           </div>
           <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-            {isSignup ? "Create your account" : "Pharmacist companion"}
+            {forgotMode ? "Reset your password" : isSignup ? "Create your account" : "Pharmacist companion"}
           </div>
         </div>
 
-        {/* Error */}
-        {state.authError && (
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "var(--major-bg)", border: "1px solid #F0CFCB",
-              borderRadius: 8, padding: "9px 12px", marginBottom: 14,
-            }}
-          >
-            <AlertCircle size={14} color="var(--major-text)" />
-            <span style={{ fontSize: 12.5, color: "var(--major-text)" }}>{state.authError}</span>
-          </div>
-        )}
-
-        {/* Fields */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label style={labelStyle}>I am a</label>
-            <SegmentedControl
-              options={["Employee", "Student"]}
-              value={state.role}
-              onChange={(v) => set({ role: v as "Employee" | "Student" })}
-            />
-          </div>
-
-          {isSignup && (
+        {/* ── FORGOT PASSWORD MODE ── */}
+        {forgotMode ? (
+          forgotSent ? (
             <div>
-              <label style={labelStyle}>Full name</label>
-              <input
-                style={inputStyle}
-                placeholder="Your name"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-            </div>
-          )}
-
-          <div>
-            <label style={labelStyle}>Email</label>
-            <input
-              style={inputStyle}
-              placeholder="you@moh.gov.kw"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Password</label>
-            <div style={{ position: "relative" }}>
-              <input
-                style={{ ...inputStyle, paddingRight: 40 }}
-                placeholder="••••••••"
-                type={showPw ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              />
-              <button
-                onClick={() => setShowPw(!showPw)}
+              <div
                 style={{
-                  position: "absolute", right: 10, top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--text-muted)", display: "flex",
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  background: "#F0FAF4", border: "1px solid #9FD4B2",
+                  borderRadius: 8, padding: "12px 14px", marginBottom: 20,
                 }}
               >
-                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                <CheckCircle size={15} color="#22863a" style={{ marginTop: 1, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: "#22863a", lineHeight: 1.5 }}>
+                  Check your email for a reset link. It may take a minute to arrive.
+                </span>
+              </div>
+              <button
+                onClick={() => { setForgotMode(false); setForgotSent(false); setForgotEmail(""); setForgotError(""); }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "100%", height: 44,
+                  borderRadius: 10, border: "1px solid var(--border)",
+                  cursor: "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontWeight: 600, fontSize: 14,
+                  background: "#fff", color: "var(--text-primary)",
+                }}
+              >
+                Back to sign in
               </button>
             </div>
-          </div>
+          ) : (
+            <>
+              {forgotError && (
+                <div
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: "var(--major-bg)", border: "1px solid #F0CFCB",
+                    borderRadius: 8, padding: "9px 12px", marginBottom: 14,
+                  }}
+                >
+                  <AlertCircle size={14} color="var(--major-text)" />
+                  <span style={{ fontSize: 12.5, color: "var(--major-text)" }}>{forgotError}</span>
+                </div>
+              )}
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
+                Enter your email address and we&apos;ll send you a link to reset your password.
+              </p>
+              <div style={{ marginBottom: 0 }}>
+                <label style={labelStyle}>Email</label>
+                <input
+                  style={inputStyle}
+                  placeholder="you@moh.gov.kw"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleForgot()}
+                />
+              </div>
+              <button
+                onClick={handleForgot}
+                disabled={forgotLoading}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "100%", height: 44, marginTop: 18,
+                  borderRadius: 10, border: "none",
+                  cursor: forgotLoading ? "not-allowed" : "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontWeight: 600, fontSize: 14,
+                  background: forgotLoading ? "var(--disabled)" : "var(--accent)",
+                  color: "#fff", transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => !forgotLoading && (e.currentTarget.style.background = "var(--accent-dark)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = forgotLoading ? "var(--disabled)" : "var(--accent)")}
+              >
+                {forgotLoading ? "Sending…" : "Send reset link"}
+              </button>
+              <div style={{ textAlign: "center", marginTop: 16 }}>
+                <button
+                  onClick={() => { setForgotMode(false); setForgotError(""); }}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "var(--accent)", fontWeight: 600,
+                    fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, padding: 0,
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            </>
+          )
+        ) : (
+          <>
+            {/* Error */}
+            {state.authError && (
+              <div
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "var(--major-bg)", border: "1px solid #F0CFCB",
+                  borderRadius: 8, padding: "9px 12px", marginBottom: 14,
+                }}
+              >
+                <AlertCircle size={14} color="var(--major-text)" />
+                <span style={{ fontSize: 12.5, color: "var(--major-text)" }}>{state.authError}</span>
+              </div>
+            )}
 
-          {isSignup && (
-            <div>
-              <label style={labelStyle}>Confirm password</label>
-              <input
-                style={{ ...inputStyle, paddingRight: 40 }}
-                placeholder="••••••••"
-                type="password"
-                value={confirmPw}
-                onChange={(e) => setConfirmPw(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              />
+            {/* Fields */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={labelStyle}>I am a</label>
+                <SegmentedControl
+                  options={["Employee", "Student"]}
+                  value={state.role}
+                  onChange={(v) => set({ role: v as "Employee" | "Student" })}
+                />
+              </div>
+
+              {isSignup && (
+                <div>
+                  <label style={labelStyle}>Full name</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="Your name"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input
+                  style={inputStyle}
+                  placeholder="you@moh.gov.kw"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Password</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 40 }}
+                    placeholder="••••••••"
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  />
+                  <button
+                    onClick={() => setShowPw(!showPw)}
+                    style={{
+                      position: "absolute", right: 10, top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "var(--text-muted)", display: "flex",
+                    }}
+                  >
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {isSignup && (
+                <div>
+                  <label style={labelStyle}>Confirm password</label>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 40 }}
+                    placeholder="••••••••"
+                    type="password"
+                    value={confirmPw}
+                    onChange={(e) => setConfirmPw(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={state.authLoading || breachChecking}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: "100%", height: 44, marginTop: 22,
-            borderRadius: 10, border: "none",
-            cursor: (state.authLoading || breachChecking) ? "not-allowed" : "pointer",
-            fontFamily: "'IBM Plex Sans', sans-serif",
-            fontWeight: 600, fontSize: 14,
-            background: (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)",
-            color: "#fff", transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => !(state.authLoading || breachChecking) && (e.currentTarget.style.background = "var(--accent-dark)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)")}
-        >
-          {breachChecking ? "Checking password safety…" : state.authLoading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
-        </button>
+            {/* Submit */}
+            <button
+              onClick={handleSubmit}
+              disabled={state.authLoading || breachChecking}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: "100%", height: 44, marginTop: 22,
+                borderRadius: 10, border: "none",
+                cursor: (state.authLoading || breachChecking) ? "not-allowed" : "pointer",
+                fontFamily: "'IBM Plex Sans', sans-serif",
+                fontWeight: 600, fontSize: 14,
+                background: (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)",
+                color: "#fff", transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => !(state.authLoading || breachChecking) && (e.currentTarget.style.background = "var(--accent-dark)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = (state.authLoading || breachChecking) ? "var(--disabled)" : "var(--accent)")}
+            >
+              {breachChecking ? "Checking password safety…" : state.authLoading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
+            </button>
 
-        {/* Toggle */}
-        <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "var(--text-secondary)" }}>
-          {isSignup ? "Already have an account? " : "New to Pillr? "}
-          <button
-            onClick={() => set({ authMode: isSignup ? "signin" : "signup", authError: "" })}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--accent)", fontWeight: 600,
-              fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, padding: 0,
-            }}
-          >
-            {isSignup ? "Sign in" : "Create account"}
-          </button>
-        </div>
+            {/* Forgot password link (sign-in mode only) */}
+            {!isSignup && (
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <button
+                  onClick={() => { setForgotMode(true); setForgotError(""); }}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "var(--text-secondary)",
+                    fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12.5, padding: 0,
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {/* Toggle */}
+            <div style={{ textAlign: "center", marginTop: 14, fontSize: 13, color: "var(--text-secondary)" }}>
+              {isSignup ? "Already have an account? " : "New to Pillr? "}
+              <button
+                onClick={() => set({ authMode: isSignup ? "signin" : "signup", authError: "" })}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--accent)", fontWeight: 600,
+                  fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, padding: 0,
+                }}
+              >
+                {isSignup ? "Sign in" : "Create account"}
+              </button>
+            </div>
+          </>
+        )}
 
         <div
           style={{

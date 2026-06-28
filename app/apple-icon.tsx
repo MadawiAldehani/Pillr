@@ -11,22 +11,16 @@ export default function AppleIcon() {
         style={{
           width: 180,
           height: 180,
-          background: "#0F2438",
+          background: "#ffffff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {/*
-         * Recreate the PillLogo pill:
-         *  – capsule shape (borderRadius: 999)
-         *  – two-tone via linear-gradient (left #1D9E75 / right #178A66)
-         *  – rotated -45 °
-         */}
         <div
           style={{
-            width: 90,
-            height: 50,
+            width: 110,
+            height: 60,
             borderRadius: 999,
             background: "linear-gradient(to right, #1D9E75 50%, #178A66 50%)",
             transform: "rotate(-45deg)",

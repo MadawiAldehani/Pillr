@@ -22,7 +22,7 @@ function ThinkingDots() {
         />
       ))}
       <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginLeft: 4 }}>
-        Checking Wolters Kluwer CDI and Drugs.com…
+        Looking up FDA drug labels…
       </span>
     </div>
   );
@@ -98,7 +98,8 @@ export function RxScreen() {
         patientContext: patientCtxLine,
         counselling: data.counselling ?? undefined,
         keyPoints: data.keyPoints ?? undefined,
-        sources: ["https://store.wolterskluwercdi.com/CDI", "https://www.drugs.com/"],
+        fdaSources: (data.fdaSources as { name: string; url: string }[] | undefined) ?? [],
+        fdaDataFound: (data.fdaDataFound as boolean | undefined) ?? false,
       };
 
       set({
@@ -497,30 +498,47 @@ export function RxScreen() {
                     </div>
                   )}
 
-                  {/* Sources + flag */}
-                  {msg.sources && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>Sources</span>
-                      {[
-                        { url: msg.sources[0], label: "Wolters Kluwer CDI" },
-                        { url: msg.sources[1], label: "Drugs.com" },
-                      ].map((s) => (
-                        <a key={s.url} href={s.url} target="_blank" rel="noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--accent-soft-text)", background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 999, padding: "3px 10px", textDecoration: "none", fontWeight: 500 }}
-                        >
-                          <ExternalLink size={11} />
-                          {s.label}
-                        </a>
-                      ))}
-                      <button
-                        onClick={() => showToast("Flagged for doctor follow-up")}
-                        style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif" }}
-                      >
-                        <Flag size={11} />
-                        Flag for doctor follow-up
-                      </button>
-                    </div>
-                  )}
+                  {/* AI disclaimer */}
+                  <div style={{
+                    fontSize: 11.5, color: "var(--text-muted)", marginTop: 10,
+                    padding: "7px 10px",
+                    background: "var(--subtle-bg)",
+                    borderRadius: 7,
+                    lineHeight: 1.5,
+                  }}>
+                    ⚠️ AI-generated decision support — always verify before acting. Not a substitute for clinical judgment.
+                  </div>
+
+                  {/* FDA sources + flag */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                    {msg.fdaSources && msg.fdaSources.length > 0 && (
+                      <>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+                          FDA label{msg.fdaSources.length > 1 ? "s" : ""}
+                        </span>
+                        {msg.fdaSources.map((s) => (
+                          <a key={s.url} href={s.url} target="_blank" rel="noreferrer"
+                            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--accent-soft-text)", background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 999, padding: "3px 10px", textDecoration: "none", fontWeight: 500 }}
+                          >
+                            <ExternalLink size={11} />
+                            {s.name}
+                          </a>
+                        ))}
+                      </>
+                    )}
+                    {msg.fdaSources && msg.fdaSources.length === 0 && (
+                      <span style={{ fontSize: 11.5, color: "var(--text-muted)", fontStyle: "italic" }}>
+                        No FDA label matched — response based on training data only
+                      </span>
+                    )}
+                    <button
+                      onClick={() => showToast("Flagged for doctor follow-up")}
+                      style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                    >
+                      <Flag size={11} />
+                      Flag for doctor follow-up
+                    </button>
+                  </div>
                 </Card>
               </div>
             );

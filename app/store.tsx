@@ -69,7 +69,10 @@ export interface ChatMessage {
   patientContext?: string;
   counselling?: string[];
   keyPoints?: string[];
-  sources?: string[];
+  /** Real FDA DailyMed source links returned by the edge function */
+  fdaSources?: { name: string; url: string }[];
+  /** True when the response was grounded in live FDA label data */
+  fdaDataFound?: boolean;
   thinking?: boolean;
 }
 
@@ -162,7 +165,11 @@ const initialMessages: ChatMessage[] = [
       "Advise patient to avoid NSAIDs unless prescribed.",
       "Consult prescriber before adding or stopping any medication.",
     ],
-    sources: ["https://store.wolterskluwercdi.com/CDI", "https://www.drugs.com/"],
+    fdaSources: [
+      { name: "Warfarin (Coumadin)", url: "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=warfarin" },
+      { name: "Aspirin", url: "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=aspirin" },
+    ],
+    fdaDataFound: true,
   },
 ];
 

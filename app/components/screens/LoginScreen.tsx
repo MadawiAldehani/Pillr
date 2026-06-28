@@ -83,9 +83,8 @@ export function LoginScreen() {
         set({ authError: "Please enter your email address" });
         return;
       }
-      // ASVS 5.0 §2.1.1 — minimum 12 characters
-      if (password.length < 12) {
-        set({ authError: "Password must be at least 12 characters" });
+      if (password.length < 8) {
+        set({ authError: "Password must be at least 8 characters" });
         return;
       }
       if (password !== confirmPw) {

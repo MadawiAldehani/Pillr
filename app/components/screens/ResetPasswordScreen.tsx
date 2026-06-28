@@ -15,8 +15,8 @@ export function ResetPasswordScreen() {
 
   const handleSubmit = async () => {
     setError("");
-    if (newPassword.length < 12) {
-      setError("Password must be at least 12 characters");
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
     if (newPassword !== confirmPw) {
@@ -151,7 +151,7 @@ export function ResetPasswordScreen() {
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 40 }}
-                    placeholder="Min. 12 characters"
+                    placeholder="Min. 8 characters"
                     type={showPw ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}

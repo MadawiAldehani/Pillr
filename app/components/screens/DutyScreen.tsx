@@ -70,7 +70,7 @@ export function DutyScreen() {
     const d = new Date(s.clockedInAt);
     if (d.getFullYear() === viewYear && d.getMonth() === viewMonth) {
       const day = d.getDate();
-      if (s.type === "on-call") {
+      if (s.type === "oncall") {
         if (!onCallByDay.has(day)) onCallByDay.set(day, []);
         onCallByDay.get(day)!.push(s);
       } else {
@@ -84,7 +84,7 @@ export function DutyScreen() {
   const totalMs = completedShifts.reduce((acc, s) =>
     acc + (new Date(s.clockedOutAt!).getTime() - new Date(s.clockedInAt).getTime()), 0);
   const totalHours  = Math.round(totalMs / 3_600_000);
-  const onCallCount = completedShifts.filter((s) => s.type === "on-call").length;
+  const onCallCount = completedShifts.filter((s) => s.type === "oncall").length;
   const dayCount    = completedShifts.filter((s) => s.type === "day").length;
 
   // ── Handlers ─────────────────────────────────────────────────────────────

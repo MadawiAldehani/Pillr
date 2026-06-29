@@ -56,7 +56,7 @@ export interface FeedbackItem {
 
 export interface Shift {
   id: string;
-  type: "day" | "on-call";
+  type: "day" | "oncall";
   clockedInAt: string;   // ISO timestamp
   clockedOutAt: string | null;
 }
@@ -507,7 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data) {
       const mapped: Shift[] = data.map((r) => ({
         id: r.id,
-        type: r.type as "day" | "on-call",
+        type: r.type as "day" | "oncall",
         clockedInAt: r.clocked_in_at,
         clockedOutAt: r.clocked_out_at || null,
       }));
@@ -579,7 +579,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase.from("shifts").insert({
       user_id:        session.user.id,
-      type:           "on-call",
+      type:           "oncall",
       clocked_in_at:  clockedInAt.toISOString(),
       clocked_out_at: clockedOutAt.toISOString(),
     }).select().single();
@@ -591,7 +591,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...s,
         shifts: [...s.shifts, {
           id:           data.id,
-          type:         "on-call" as const,
+          type:         "oncall" as const,
           clockedInAt:  data.clocked_in_at,
           clockedOutAt: data.clocked_out_at,
         }],

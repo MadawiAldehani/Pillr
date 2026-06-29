@@ -74,7 +74,7 @@ export function DashboardScreen() {
   const drpsThisMonth   = casesThisMonth.filter(c => c.drp).length;
 
   // Shifts — on-call count this month
-  const monthOnCallCount = state.shifts.filter(s => s.type === "on-call").length;
+  const monthOnCallCount = state.shifts.filter(s => s.type === "oncall").length;
 
   // Hours logged today (all shift types)
   const todayStr    = localDateStr(now);

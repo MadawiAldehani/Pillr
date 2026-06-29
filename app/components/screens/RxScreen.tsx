@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Send, Save, ExternalLink, Flag, X, AlertCircle } from "lucide-react";
+import { Send, Save, ExternalLink, Flag, X, AlertCircle, Copy, Check } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { SeverityBadge } from "@/app/components/ui/Badge";
@@ -34,6 +34,7 @@ const AI_CONSENT_KEY = "pillr_rx_ai_consent_v1";
 export function RxScreen() {
   const { state, set, showToast, addCase } = useApp();
   const [input, setInput] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [consentDismissed, setConsentDismissed] = useState(
     () => typeof window !== "undefined" && localStorage.getItem(AI_CONSENT_KEY) === "1",
   );
@@ -48,6 +49,13 @@ export function RxScreen() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [state.messages, state.isThinking]);
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
 
   const handleSend = async () => {
     if (!input.trim() || state.isThinking) return;
@@ -414,7 +422,19 @@ export function RxScreen() {
           {state.messages.map((msg) => {
             if (msg.role === "user") {
               return (
-                <div key={msg.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+                <div key={msg.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, alignItems: "flex-end", gap: 6 }}>
+                  <button
+                    onClick={() => handleCopy(msg.id, msg.content)}
+                    title="Copy message"
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "var(--text-faint)", padding: 4, borderRadius: 6,
+                      display: "flex", flexShrink: 0,
+                      transition: "color 0.15s",
+                    }}
+                  >
+                    {copiedId === msg.id ? <Check size={13} color="var(--accent)" /> : <Copy size={13} />}
+                  </button>
                   <div
                     style={{
                       background: "var(--navy)",
@@ -509,8 +529,29 @@ export function RxScreen() {
                     ⚠️ AI-generated decision support — always verify before acting. Not a substitute for clinical judgment.
                   </div>
 
-                  {/* FDA sources + flag */}
+                  {/* FDA sources + flag + copy */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                    <button
+                      onClick={() => {
+                        const parts = [msg.content];
+                        if (msg.counselling?.length) parts.push("\nPatient Counselling:\n" + msg.counselling.map(c => `• ${c}`).join("\n"));
+                        if (msg.keyPoints?.length) parts.push("\nKey Points:\n" + msg.keyPoints.map(p => `• ${p}`).join("\n"));
+                        handleCopy(msg.id, parts.join("\n"));
+                      }}
+                      title="Copy response"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "var(--text-muted)", padding: 4, borderRadius: 6,
+                        display: "flex", alignItems: "center", gap: 4,
+                        fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif",
+                        transition: "color 0.15s",
+                      }}
+                    >
+                      {copiedId === msg.id
+                        ? <><Check size={13} color="var(--accent)" /><span style={{ color: "var(--accent)" }}>Copied!</span></>
+                        : <><Copy size={13} /><span>Copy</span></>
+                      }
+                    </button>
                     {msg.fdaSources && msg.fdaSources.length > 0 && (
                       <>
                         <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>

@@ -1,5 +1,5 @@
 "use client";
-import { LayoutDashboard, MessageSquare, Clock, List, Search } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Clock, List, Search, MessageCircle, Settings } from "lucide-react";
 import { useApp, Screen } from "@/app/store";
 import { Sidebar } from "@/app/components/layout/Sidebar";
 import { NotificationsPanel } from "@/app/components/layout/NotificationsPanel";
@@ -27,19 +27,24 @@ function ScreenRouter() {
 }
 
 // ── Bottom navigation (mobile only — hidden via CSS above 640 px) ─────────────
-const BOTTOM_NAV_ITEMS: { id: Screen; icon: React.ReactNode; label: string }[] = [
-  { id: "dashboard", icon: <LayoutDashboard size={20} strokeWidth={1.8} />, label: "Home" },
-  { id: "rx",        icon: <MessageSquare   size={20} strokeWidth={1.8} />, label: "Rx" },
-  { id: "duty",      icon: <Clock           size={20} strokeWidth={1.8} />, label: "Duty" },
-  { id: "caselog",   icon: <List            size={20} strokeWidth={1.8} />, label: "Cases" },
-  { id: "search",    icon: <Search          size={20} strokeWidth={1.8} />, label: "Search" },
-];
-
 function BottomNav() {
   const { state, navigate } = useApp();
+
+  const navItems: { id: Screen; icon: React.ReactNode; label: string }[] = [
+    { id: "dashboard", icon: <LayoutDashboard size={20} strokeWidth={1.8} />, label: "Home" },
+    { id: "rx",        icon: <MessageSquare   size={20} strokeWidth={1.8} />, label: "Rx" },
+    { id: "duty",      icon: <Clock           size={20} strokeWidth={1.8} />, label: "Duty" },
+    { id: "caselog",   icon: <List            size={20} strokeWidth={1.8} />, label: "Cases" },
+    { id: "search",    icon: <Search          size={20} strokeWidth={1.8} />, label: "Search" },
+    { id: "feedback",  icon: <MessageCircle   size={20} strokeWidth={1.8} />, label: "Feedback" },
+    ...(state.isAdmin
+      ? [{ id: "admin" as Screen, icon: <Settings size={20} strokeWidth={1.8} />, label: "Admin" }]
+      : []),
+  ];
+
   return (
     <nav className="bottom-nav">
-      {BOTTOM_NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const active = state.screen === item.id;
         return (
           <button

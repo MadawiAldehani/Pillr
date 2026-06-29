@@ -11,6 +11,7 @@ import { CaseLogScreen } from "@/app/components/screens/CaseLogScreen";
 import { SearchScreen } from "@/app/components/screens/SearchScreen";
 import { AdminScreen } from "@/app/components/screens/AdminScreen";
 import { FeedbackScreen } from "@/app/components/screens/FeedbackScreen";
+import { OnboardingTour } from "@/app/components/OnboardingTour";
 
 function ScreenRouter() {
   const { state } = useApp();
@@ -116,6 +117,7 @@ export function AppShell() {
       <BottomNav />
       <NotificationsPanel />
       <Toast />
+      <OnboardingTour />
     </div>
   );
 }

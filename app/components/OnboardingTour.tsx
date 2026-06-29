@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { MessageSquare, Clock, List, LayoutDashboard, Search, X, ChevronRight, ChevronLeft, MessageCircle } from "lucide-react";
 import { useApp } from "@/app/store";
 
-const TOUR_KEY = "pillr_tour_v1";
+const TOUR_KEY = "pillr_tour_v2";
 
 interface Step {
   icon: React.ReactNode;
@@ -86,6 +86,11 @@ const STEPS: Step[] = [
   },
 ];
 
+// Call this from anywhere to re-open the tour
+export function resetTour() {
+  if (typeof window !== "undefined") localStorage.removeItem(TOUR_KEY);
+}
+
 export function OnboardingTour() {
   const { state } = useApp();
   const [visible, setVisible] = useState(false);
@@ -108,6 +113,13 @@ export function OnboardingTour() {
     if (typeof window !== "undefined") localStorage.setItem(TOUR_KEY, "1");
     setVisible(false);
   };
+
+  // Allow external callers (e.g. sidebar button) to reopen the tour
+  useEffect(() => {
+    const handler = () => { setStep(0); setVisible(true); };
+    window.addEventListener("pillr:open-tour", handler);
+    return () => window.removeEventListener("pillr:open-tour", handler);
+  }, []);
 
   const goTo = (next: number) => {
     if (animating) return;

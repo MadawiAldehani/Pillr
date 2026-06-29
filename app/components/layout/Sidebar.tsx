@@ -2,7 +2,7 @@
 import { useRef } from "react";
 import {
   LayoutDashboard, MessageSquare, Clock, List, Search,
-  Bell, Settings, LogOut, Camera, Loader, MessageCircle,
+  Bell, Settings, LogOut, Camera, Loader, MessageCircle, HelpCircle,
 } from "lucide-react";
 import { PillLogo } from "@/app/components/ui/PillLogo";
 import { useApp, Screen } from "@/app/store";
@@ -192,6 +192,19 @@ export function Sidebar() {
           </div>
           <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11.5 }}>{state.role}</div>
         </div>
+
+        <button
+          onClick={() => window.dispatchEvent(new Event("pillr:open-tour"))}
+          title="Replay app tour"
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "rgba(255,255,255,0.45)",
+            display: "flex", padding: 4, borderRadius: 6,
+          }}
+          className="sidebar-label"
+        >
+          <HelpCircle size={15} strokeWidth={1.8} />
+        </button>
 
         <button
           onClick={() => signOut()}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Pencil, X, AlertCircle } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
+import { PushReminderCard } from "@/app/components/PushReminderCard";
 import { useApp } from "@/app/store";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -146,6 +147,9 @@ export function DutyScreen() {
   return (
     <div style={{ padding: "clamp(18px,3vw,26px) clamp(16px,3.5vw,32px)", position: "relative" }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, letterSpacing: "-0.01em" }}>Duty tracker</h1>
+
+      {/* ── On-call shift reminders (Web Push) ── */}
+      <PushReminderCard />
 
       {/* ── Clock in/out ── */}
       <Card style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>

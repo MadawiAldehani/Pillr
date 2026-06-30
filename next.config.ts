@@ -13,6 +13,8 @@ const CSP = [
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.pwnedpasswords.com",
   // Google Fonts files
   "font-src 'self' data: https://fonts.gstatic.com",
+  // Service worker for Web Push — same origin only
+  "worker-src 'self'",
   // Disallow embedding in iframes (clickjacking)
   "frame-ancestors 'none'",
   // Prevent base-tag hijacking

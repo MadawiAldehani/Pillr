@@ -1,22 +1,137 @@
 "use client";
-import { useEffect } from "react";
-import { Plus, Download, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Download, X, Search } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { useApp, Severity } from "@/app/store";
 
+const SEV_OPTIONS: (Severity | "All")[] = ["All", "None", "Minor", "Moderate", "Major"];
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+}
+
 export function CaseLogScreen() {
   const { state, set, showToast, fetchCases, addCase } = useApp();
   const { cases, addOpen, addMeds, addSev, addDrp } = state;
 
-  useEffect(() => { fetchCases(); }, []);
+  // ── Filters ──
+  const [search, setSearch] = useState("");
+  const [sevFilter, setSevFilter] = useState<Severity | "All">("All");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  useEffect(() => { fetchCases(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const todayCount = cases.filter((c) => c.date === today).length;
-  const weekCount = cases.length; // simplified
-  const monthCount = cases.length;
+  const now = new Date();
+  const today = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  // ── Real count cards ──
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekAgo      = startOfToday - 6 * 86_400_000;
+  const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const todayCount = cases.filter((c) => new Date(c.createdAt).getTime() >= startOfToday).length;
+  const weekCount  = cases.filter((c) => new Date(c.createdAt).getTime() >= weekAgo).length;
+  const monthCount = cases.filter((c) => new Date(c.createdAt).getTime() >= monthStart).length;
+
+  // ── 6-month activity chart ──
+  const months: { label: string; total: number; drps: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const mStart = d.getTime();
+    const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    const monthCases = cases.filter((c) => { const t = new Date(c.createdAt).getTime(); return t >= mStart && t <= mEnd; });
+    months.push({
+      label: d.toLocaleDateString("en-GB", { month: "short" }),
+      total: monthCases.length,
+      drps: monthCases.filter((c) => c.drp).length,
+    });
+  }
+  const maxVal = Math.max(1, ...months.map((m) => m.total));
+  const CHART_H = 104;
+
+  // ── Filtered cases ──
+  const filtered = cases.filter((c) => {
+    if (search && !c.meds.toLowerCase().includes(search.toLowerCase())) return false;
+    if (sevFilter !== "All" && c.severity !== sevFilter) return false;
+    if (fromDate && new Date(c.createdAt) < new Date(fromDate)) return false;
+    if (toDate) { const end = new Date(toDate); end.setHours(23, 59, 59, 999); if (new Date(c.createdAt) > end) return false; }
+    return true;
+  });
+  const hasActiveFilter = !!search || sevFilter !== "All" || !!fromDate || !!toDate;
+  const clearFilters = () => { setSearch(""); setSevFilter("All"); setFromDate(""); setToDate(""); };
+
+  // ── PDF export (print-to-PDF — works on iOS Safari & desktop) ──
+  const handleExport = () => {
+    const rows = filtered.map((c) => `<tr>
+      <td>${c.date}<br><span class="t">${c.time}</span></td>
+      <td>${c.countOnly ? "<em>Count only</em>" : escapeHtml(c.meds)}</td>
+      <td>${c.countOnly ? "—" : c.severity}</td>
+      <td>${c.countOnly ? "—" : escapeHtml(c.counsel || "—")}</td>
+      <td>${c.countOnly ? "—" : c.drp ? "Yes" : "No"}</td>
+      <td>${c.countOnly ? "—" : c.flagged ? "Yes" : "No"}</td>
+    </tr>`).join("");
+
+    const drpCount = filtered.filter((c) => c.drp).length;
+    const flaggedCount = filtered.filter((c) => c.flagged).length;
+    const rangeLabel = (fromDate || toDate)
+      ? `${fromDate || "start"} → ${toDate || "today"}`
+      : "All time";
+
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>Pillr Case Log — ${escapeHtml(state.userName || "Pharmacist")}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #16202E; margin: 32px; }
+  .head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #1D9E75; padding-bottom: 14px; margin-bottom: 16px; }
+  .pill { width: 30px; height: 15px; border-radius: 99px; background: #1D9E75; box-shadow: inset -15px 0 0 #178A66; transform: rotate(-45deg); }
+  .brand { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .sub { color: #5A6675; font-size: 13px; margin-left: auto; text-align: right; line-height: 1.5; }
+  .meta { font-size: 13px; color: #5A6675; margin-bottom: 14px; }
+  .stats { display: flex; gap: 24px; margin-bottom: 18px; }
+  .stat .n { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 11px; color: #8A94A2; text-transform: uppercase; letter-spacing: 0.04em; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #F4F6F8; text-align: left; padding: 8px 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: #5A6675; border-bottom: 1px solid #E6E9ED; }
+  td { padding: 8px 10px; border-bottom: 1px solid #EDEFF2; vertical-align: top; }
+  td .t { color: #8A94A2; font-size: 10px; }
+  .foot { margin-top: 22px; font-size: 10.5px; color: #8A94A2; border-top: 1px solid #E6E9ED; padding-top: 10px; }
+  @media print { body { margin: 12mm; } }
+</style></head><body>
+  <div class="head">
+    <div class="pill"></div>
+    <div class="brand">Pillr</div>
+    <div class="sub"><strong>${escapeHtml(state.userName || "Pharmacist")}</strong><br>${escapeHtml(state.role || "")}</div>
+  </div>
+  <div class="meta">Case Log Report · Generated ${today} · Range: ${escapeHtml(rangeLabel)}</div>
+  <div class="stats">
+    <div class="stat"><div class="n">${filtered.length}</div><div class="l">Cases</div></div>
+    <div class="stat"><div class="n">${drpCount}</div><div class="l">DRPs caught</div></div>
+    <div class="stat"><div class="n">${flaggedCount}</div><div class="l">Flagged</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Medications</th><th>Severity</th><th>Counselling</th><th>DRP</th><th>Flagged</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#8A94A2;padding:20px">No cases match the current filters</td></tr>'}</tbody>
+  </table>
+  <div class="foot">Generated by Pillr — AI Companion for Pharmacists. Contains no patient-identifying information.</div>
+</body></html>`;
+
+    // Render into a hidden iframe and print — most reliable path on iOS PWAs
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0"; iframe.style.bottom = "0";
+    iframe.style.width = "0"; iframe.style.height = "0"; iframe.style.border = "0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (!doc) { showToast("Could not open print view"); return; }
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }
+      catch { showToast("Printing not supported on this device"); }
+      setTimeout(() => iframe.remove(), 1500);
+    }, 350);
+  };
 
   const handleQuickAdd = async () => {
     await addCase({ meds: "", severity: "None", drp: false, flagged: false, counsel: "", source: "Manual", countOnly: true });
@@ -64,10 +179,11 @@ export function CaseLogScreen() {
             Add case
           </button>
           <button
-            onClick={() => showToast("Exported — check your downloads")}
+            onClick={handleExport}
+            title="Export the filtered cases as a printable PDF"
             style={{
               height: 36, padding: "0 14px",
-              background: "#fff", color: "var(--text-secondary)",
+              background: "var(--card-bg)", color: "var(--text-secondary)",
               border: "1px solid var(--border)",
               borderRadius: 8, cursor: "pointer",
               fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 500, fontSize: 13,
@@ -75,16 +191,16 @@ export function CaseLogScreen() {
             }}
           >
             <Download size={13} />
-            Export
+            Export PDF
           </button>
         </div>
       </div>
 
       {/* Count cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 14 }}>
         {[
           { label: "Cases today", value: todayCount },
-          { label: "This week", value: weekCount },
+          { label: "Last 7 days", value: weekCount },
           { label: "This month", value: monthCount },
         ].map((s) => (
           <Card key={s.label}>
@@ -94,10 +210,98 @@ export function CaseLogScreen() {
         ))}
       </div>
 
+      {/* ── Activity chart (last 6 months) ── */}
+      <Card style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>Activity — last 6 months</span>
+          <div style={{ display: "flex", gap: 14 }}>
+            {[{ c: "var(--accent)", l: "Cases" }, { c: "var(--major-text)", l: "DRPs" }].map((x) => (
+              <div key={x.l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: x.c }} />
+                {x.l}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, padding: "0 2px" }}>
+          {months.map((m) => (
+            <div key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ width: "100%", height: CHART_H, display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 5 }}>
+                <div
+                  title={`${m.total} cases`}
+                  style={{ width: 18, height: Math.max(m.total ? 3 : 0, (m.total / maxVal) * CHART_H), background: "var(--accent)", borderRadius: "4px 4px 0 0", transition: "height 0.4s" }}
+                />
+                <div
+                  title={`${m.drps} DRPs`}
+                  style={{ width: 18, height: Math.max(m.drps ? 3 : 0, (m.drps / maxVal) * CHART_H), background: "var(--major-text)", borderRadius: "4px 4px 0 0", transition: "height 0.4s" }}
+                />
+              </div>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>{m.total}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── Filter bar ── */}
+      <Card style={{ marginBottom: 18, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+        {/* Search */}
+        <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
+          <Search size={14} color="var(--text-muted)" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by drug name…"
+            style={{
+              width: "100%", height: 36, border: "1px solid var(--input-border)", borderRadius: 8,
+              padding: "0 12px 0 32px", fontSize: 13, outline: "none",
+              fontFamily: "'IBM Plex Sans', sans-serif", color: "var(--text-primary)", background: "var(--card-bg)",
+            }}
+          />
+        </div>
+        {/* Severity */}
+        <SegmentedControl
+          options={SEV_OPTIONS}
+          value={sevFilter}
+          onChange={(v) => setSevFilter(v as Severity | "All")}
+          size="sm"
+        />
+        {/* Date range */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+            title="From date"
+            style={{ height: 36, border: "1px solid var(--input-border)", borderRadius: 8, padding: "0 8px", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", outline: "none", background: "var(--card-bg)", color: "var(--text-primary)" }}
+          />
+          <span style={{ color: "var(--text-muted)", fontSize: 13 }}>–</span>
+          <input
+            type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+            title="To date"
+            style={{ height: 36, border: "1px solid var(--input-border)", borderRadius: 8, padding: "0 8px", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", outline: "none", background: "var(--card-bg)", color: "var(--text-primary)" }}
+          />
+        </div>
+        {hasActiveFilter && (
+          <button
+            onClick={clearFilters}
+            style={{ display: "flex", alignItems: "center", gap: 4, height: 36, padding: "0 12px", background: "none", border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer", fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif" }}
+          >
+            <X size={12} /> Clear
+          </button>
+        )}
+      </Card>
+
+      {hasActiveFilter && (
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 10 }}>
+          Showing {filtered.length} of {cases.length} cases
+        </div>
+      )}
+
       {/* Table */}
-      {cases.length === 0 ? (
+      {filtered.length === 0 ? (
         <Card style={{ textAlign: "center", padding: "48px 20px" }}>
-          <div style={{ fontSize: 13.5, color: "var(--text-muted)" }}>No saved cases</div>
+          <div style={{ fontSize: 13.5, color: "var(--text-muted)" }}>
+            {cases.length === 0 ? "No saved cases" : "No cases match the current filters"}
+          </div>
         </Card>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -125,10 +329,10 @@ export function CaseLogScreen() {
                 </tr>
               </thead>
               <tbody>
-                {cases.map((c, i) => (
+                {filtered.map((c, i) => (
                   <tr
                     key={c.id}
-                    style={{ borderBottom: "1px solid var(--border-2)", background: i % 2 === 0 ? "#fff" : "var(--subtle-bg)" }}
+                    style={{ borderBottom: "1px solid var(--border-2)", background: i % 2 === 0 ? "var(--card-bg)" : "var(--subtle-bg)" }}
                   >
                     <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{c.date}</div>
@@ -188,7 +392,7 @@ export function CaseLogScreen() {
               top: "50%", left: "50%",
               transform: "translate(-50%,-50%)",
               width: "min(440px,calc(100vw - 32px))",
-              background: "#fff",
+              background: "var(--card-bg)",
               borderRadius: 16, border: "1px solid var(--border)",
               boxShadow: "0 20px 50px -20px rgba(15,36,56,0.45)",
               padding: "24px 26px",
@@ -218,7 +422,7 @@ export function CaseLogScreen() {
                     display: "block", width: "100%", height: 40,
                     border: "1px solid var(--input-border)", borderRadius: 8,
                     padding: "0 12px", fontFamily: "'IBM Plex Sans', sans-serif",
-                    fontSize: 13.5, outline: "none",
+                    fontSize: 13.5, outline: "none", background: "var(--card-bg)", color: "var(--text-primary)",
                   }}
                 />
               </div>

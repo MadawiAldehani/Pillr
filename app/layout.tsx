@@ -18,12 +18,19 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#0F2438",
 };
+
+// Runs before first paint so the saved theme is applied with no white flash
+const NO_FLASH_THEME = `(function(){try{var t=localStorage.getItem('pillr_theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="h-full">{children}</body>
+    <html lang="en" className="h-full" suppressHydrationWarning>
+      <body className="h-full">
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
+        {children}
+      </body>
     </html>
   );
 }

@@ -155,7 +155,7 @@ export function OnboardingTour() {
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--card-bg)",
           borderRadius: 24,
           width: "100%",
           maxWidth: 400,
@@ -273,7 +273,7 @@ export function OnboardingTour() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "#fff",
+            background: "var(--card-bg)",
           }}
         >
           {/* Step dots */}

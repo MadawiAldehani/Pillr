@@ -436,7 +436,7 @@ export function SearchScreen() {
             paddingLeft: 40, paddingRight: 14,
             fontFamily: "'IBM Plex Mono', monospace",
             fontSize: 14, outline: "none",
-            background: "#fff",
+            background: "var(--card-bg)",
             boxSizing: "border-box",
           }}
         />
@@ -446,7 +446,7 @@ export function SearchScreen() {
           <div
             style={{
               position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card-bg)", border: "1px solid var(--border)",
               borderRadius: 10, zIndex: 50,
               boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
               overflow: "hidden",
@@ -518,7 +518,7 @@ export function SearchScreen() {
           <div
             style={{
               position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card-bg)", border: "1px solid var(--border)",
               borderRadius: 10, padding: "14px 16px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
               fontSize: 13.5, color: "var(--text-muted)",
@@ -543,7 +543,7 @@ export function SearchScreen() {
             onClick={() => set({ selectedDrug: d })}
             style={{
               height: 36, padding: "0 16px",
-              background: "#fff", color: "var(--text-primary)",
+              background: "var(--card-bg)", color: "var(--text-primary)",
               border: "1px solid var(--border)", borderRadius: 999,
               cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace",
               fontSize: 13, fontWeight: 500,
@@ -555,7 +555,7 @@ export function SearchScreen() {
               e.currentTarget.style.color = "var(--accent-soft-text)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#fff";
+              e.currentTarget.style.background = "var(--card-bg)";
               e.currentTarget.style.borderColor = "var(--border)";
               e.currentTarget.style.color = "var(--text-primary)";
             }}

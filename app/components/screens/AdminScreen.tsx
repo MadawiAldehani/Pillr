@@ -132,7 +132,7 @@ export function AdminScreen() {
                     {userRows.map((u, i) => {
                       const seenRecently = u.lastSeenAt && (now - new Date(u.lastSeenAt).getTime()) < 86_400_000;
                       return (
-                        <tr key={u.id} style={{ borderBottom: "1px solid var(--border-2)", background: i % 2 === 0 ? "#fff" : "var(--subtle-bg)" }}>
+                        <tr key={u.id} style={{ borderBottom: "1px solid var(--border-2)", background: i % 2 === 0 ? "var(--card-bg)" : "var(--subtle-bg)" }}>
                           <td style={{ padding: "12px 16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                               <div style={{

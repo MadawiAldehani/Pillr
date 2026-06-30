@@ -95,7 +95,7 @@ export function FeedbackScreen() {
                       onClick={() => setCategory(cat.label)}
                       style={{
                         height: 34, padding: "0 14px",
-                        background: active ? cat.bg : "#fff",
+                        background: active ? cat.bg : "var(--card-bg)",
                         color: active ? cat.text : "var(--text-secondary)",
                         border: `1.5px solid ${active ? cat.border : "var(--input-border)"}`,
                         borderRadius: 999,

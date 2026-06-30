@@ -87,6 +87,18 @@ export function DutyScreen() {
   const onCallCount = completedShifts.filter((s) => s.type === "oncall").length;
   const dayCount    = completedShifts.filter((s) => s.type === "day").length;
 
+  // Compliance — Kuwait work days (Sun–Thu) covered in the viewed month
+  let requiredWorkDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (WORK_DAYS.has(new Date(viewYear, viewMonth, d).getDay())) requiredWorkDays++;
+  }
+  const coveredWorkDays = new Set(
+    shifts.filter((s) => s.type === "day" && WORK_DAYS.has(new Date(s.clockedInAt).getDay()))
+          .map((s) => new Date(s.clockedInAt).getDate())
+  ).size;
+  const completedWorkDays = Math.min(coveredWorkDays, requiredWorkDays);
+  const compliancePct = requiredWorkDays ? Math.round((completedWorkDays / requiredWorkDays) * 100) : 0;
+
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleClockToggle = async () => {
     setBusy(true);
@@ -261,6 +273,23 @@ export function DutyScreen() {
         ))}
       </div>
 
+      {/* ── Compliance progress ── */}
+      <Card style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 170 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 7 }}>
+            You&rsquo;ve completed{" "}
+            <span style={{ color: "var(--accent-soft-text)" }}>{completedWorkDays} / {requiredWorkDays}</span>{" "}
+            required shifts this month
+          </div>
+          <div style={{ height: 7, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${compliancePct}%`, background: compliancePct >= 80 ? "var(--accent)" : "var(--amber-text)", borderRadius: 99, transition: "width 0.4s" }} />
+          </div>
+        </div>
+        <span style={{ background: "var(--accent-soft)", color: "var(--accent-soft-text)", borderRadius: 999, padding: "4px 14px", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+          {compliancePct}%
+        </span>
+      </Card>
+
       {/* ── Legend ── */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
         {[
@@ -333,7 +362,7 @@ export function DutyScreen() {
                         minHeight: 90, padding: "8px",
                         borderRight: "1px solid var(--border-2)",
                         borderBottom: "1px solid var(--border-2)",
-                        background: isToday ? "var(--accent-soft)" : "#fff",
+                        background: isToday ? "var(--accent-soft)" : "var(--card-bg)",
                         outline: isToday ? "2px solid var(--accent)" : "none",
                         outlineOffset: -1,
                         position: "relative",
@@ -407,7 +436,7 @@ export function DutyScreen() {
               position: "fixed", top: "50%", left: "50%",
               transform: "translate(-50%,-50%)",
               width: "min(400px,calc(100vw - 32px))",
-              background: "#fff", borderRadius: 16, border: "1px solid var(--border)",
+              background: "var(--card-bg)", borderRadius: 16, border: "1px solid var(--border)",
               boxShadow: "0 20px 50px -20px rgba(15,36,56,0.45)",
               padding: "24px 26px", zIndex: 301,
             }}

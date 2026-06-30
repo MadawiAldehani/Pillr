@@ -47,6 +47,53 @@
 
   /* Disabled */
   --disabled:        #C7CDD4;
+
+  color-scheme: light;
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────────────────
+   Applied via data-theme="dark" on <html>. Every screen reads these vars, so
+   surfaces, text, and severity colours all flip together. */
+[data-theme="dark"] {
+  --accent:          #1FB083;
+  --accent-dark:     #189A70;
+  --accent-soft:     #15362A;
+  --accent-soft-text:#5FD3A6;
+  --accent-border:   #1F4E3D;
+
+  --navy:            #0E2032;
+  --navy-2:          #12293E;
+
+  --text-primary:    #E9EDF2;
+  --text-secondary:  #AEB9C6;
+  --text-muted:      #7C8696;
+  --text-faint:      #4E5A69;
+
+  --page-bg:         #0B1118;
+  --card-bg:         #151D28;
+  --subtle-bg:       #111923;
+  --border:          #28333F;
+  --border-2:        #202B36;
+  --input-border:    #313D4B;
+
+  --major-text:      #F0998E;
+  --major-bg:        #3A1D1B;
+  --moderate-text:   #E3B264;
+  --moderate-bg:     #382C16;
+  --minor-text:      #5FD3A6;
+  --minor-bg:        #143227;
+
+  --amber-bg:        #312916;
+  --amber-border:    #4A3C20;
+  --amber-text:      #E4BE78;
+
+  --indigo-text:     #9A9AF0;
+  --indigo-bg:       #20254A;
+  --indigo-border:   #353A66;
+
+  --disabled:        #3A4654;
+
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }

@@ -5,6 +5,7 @@ import {
   Bell, Settings, LogOut, Camera, Loader, MessageCircle, HelpCircle,
 } from "lucide-react";
 import { PillLogo } from "@/app/components/ui/PillLogo";
+import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { useApp, Screen } from "@/app/store";
 
 const baseNavItems: { id: Screen; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
@@ -205,6 +206,8 @@ export function Sidebar() {
         >
           <HelpCircle size={15} strokeWidth={1.8} />
         </button>
+
+        <ThemeToggle variant="sidebar" />
 
         <button
           onClick={() => signOut()}

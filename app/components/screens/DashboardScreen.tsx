@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { MessageSquare, FileText, AlertTriangle, Clock, LogIn, LogOut, CheckCircle2 } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
+import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { useApp } from "@/app/store";
 
 function formatTime(iso: string) {
@@ -158,21 +159,24 @@ export function DashboardScreen() {
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 3, letterSpacing: "-0.01em" }}>Dashboard</h1>
           <div style={{ fontSize: 13.5, color: "var(--text-secondary)" }}>{today}</div>
         </div>
-        <button
-          onClick={() => navigate("rx")}
-          style={{
-            display: "flex", alignItems: "center", gap: 7,
-            height: 38, padding: "0 16px",
-            background: "var(--accent)", color: "#fff",
-            border: "none", borderRadius: 9, cursor: "pointer",
-            fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 13.5,
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-dark)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent)")}
-        >
-          <MessageSquare size={15} strokeWidth={2} />
-          Ask Rx Assistant
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ThemeToggle variant="header" />
+          <button
+            onClick={() => navigate("rx")}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              height: 38, padding: "0 16px",
+              background: "var(--accent)", color: "#fff",
+              border: "none", borderRadius: 9, cursor: "pointer",
+              fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 13.5,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-dark)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent)")}
+          >
+            <MessageSquare size={15} strokeWidth={2} />
+            Ask Rx Assistant
+          </button>
+        </div>
       </div>
 
       {/* ── Adaptive shift card — quick clock-in / live timer / not-clocked-in warning ── */}
@@ -295,7 +299,7 @@ export function DashboardScreen() {
               <span
                 style={{
                   marginLeft: "auto",
-                  background: "#F0DFC0", color: "var(--amber-text)",
+                  background: "var(--amber-border)", color: "var(--amber-text)",
                   borderRadius: 999, fontSize: 11, fontWeight: 700, padding: "1px 8px",
                 }}
               >

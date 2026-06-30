@@ -45,7 +45,7 @@ export function ResetPasswordScreen() {
     fontSize: 13.5,
     color: "var(--text-primary)",
     outline: "none",
-    background: "#fff",
+    background: "var(--card-bg)",
   } as const;
 
   const labelStyle = {
@@ -81,7 +81,7 @@ export function ResetPasswordScreen() {
         style={{
           position: "relative", zIndex: 1,
           width: "min(380px, 100%)",
-          background: "#fff",
+          background: "var(--card-bg)",
           borderRadius: 16,
           border: "1px solid var(--border)",
           boxShadow: "0 20px 50px -20px rgba(15,36,56,0.45)",

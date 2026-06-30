@@ -120,7 +120,7 @@ export function LoginScreen() {
     fontSize: 13.5,
     color: "var(--text-primary)",
     outline: "none",
-    background: "#fff",
+    background: "var(--card-bg)",
   } as const;
 
   const labelStyle = {
@@ -156,7 +156,7 @@ export function LoginScreen() {
         style={{
           position: "relative", zIndex: 1,
           width: "min(380px, 100%)",
-          background: "#fff",
+          background: "var(--card-bg)",
           borderRadius: 16,
           border: "1px solid var(--border)",
           boxShadow: "0 20px 50px -20px rgba(15,36,56,0.45)",
@@ -198,7 +198,7 @@ export function LoginScreen() {
                   cursor: "pointer",
                   fontFamily: "'IBM Plex Sans', sans-serif",
                   fontWeight: 600, fontSize: 14,
-                  background: "#fff", color: "var(--text-primary)",
+                  background: "var(--card-bg)", color: "var(--text-primary)",
                 }}
               >
                 Back to sign in

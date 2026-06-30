@@ -335,7 +335,7 @@ export function RxScreen() {
             display: "flex",
             alignItems: "center",
             gap: 12,
-            background: "#fff",
+            background: "var(--card-bg)",
           }}
         >
           <div style={{ display: "flex", gap: 4, background: "var(--border-2)", padding: 3, borderRadius: 10 }}>
@@ -353,7 +353,7 @@ export function RxScreen() {
                     fontFamily: "'IBM Plex Sans', sans-serif",
                     fontWeight: active ? 600 : 400,
                     fontSize: 13,
-                    background: active ? "#fff" : "transparent",
+                    background: active ? "var(--card-bg)" : "transparent",
                     color: active ? "var(--accent-soft-text)" : "var(--text-secondary)",
                     boxShadow: active ? "0 1px 4px rgba(15,36,56,0.10)" : "none",
                     transition: "all 0.15s",

@@ -16,7 +16,7 @@ export function SegmentedControl({ options, value, onChange, size = "md" }: Segm
         border: `1px solid var(--input-border)`,
         borderRadius: 10,
         overflow: "hidden",
-        background: "#fff",
+        background: "var(--card-bg)",
       }}
     >
       {options.map((opt) => {
@@ -35,7 +35,7 @@ export function SegmentedControl({ options, value, onChange, size = "md" }: Segm
               borderLeft: "1px solid var(--input-border)",
               cursor: "pointer",
               transition: "all 0.15s",
-              background: active ? "var(--accent-soft)" : "#fff",
+              background: active ? "var(--accent-soft)" : "var(--card-bg)",
               color: active ? "var(--accent-soft-text)" : "var(--text-secondary)",
               outline: active ? `1.5px solid var(--accent-border)` : "none",
               outlineOffset: -1,

@@ -32,7 +32,7 @@ export function NotificationsPanel() {
           right: 0,
           bottom: 0,
           width: "min(380px, 100%)",
-          background: "#fff",
+          background: "var(--card-bg)",
           boxShadow: "-16px 0 44px -22px rgba(15,36,56,0.4)",
           zIndex: 201,
           display: "flex",
@@ -82,7 +82,7 @@ export function NotificationsPanel() {
                 gap: 12,
                 padding: "14px 20px",
                 borderBottom: "1px solid var(--border-2)",
-                background: n.unread ? "var(--accent-soft)" : "#fff",
+                background: n.unread ? "var(--accent-soft)" : "var(--card-bg)",
                 borderLeft: n.unread ? "3px solid var(--accent)" : "3px solid transparent",
               }}
             >

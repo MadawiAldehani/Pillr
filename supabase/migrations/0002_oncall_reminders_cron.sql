@@ -17,6 +17,8 @@ select cron.schedule(
   $$
   select net.http_post(
     url     := 'https://dcwpukpxnqipjglksymg.supabase.co/functions/v1/send-oncall-reminders',
+    -- send-oncall-reminders has JWT verification turned OFF, so no key is
+    -- needed here — the x-cron-secret is the auth gate (checked in the function).
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-cron-secret', 'REPLACE_WITH_CRON_SECRET'

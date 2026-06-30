@@ -8,14 +8,15 @@ import { PillLogo } from "@/app/components/ui/PillLogo";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { useApp, Screen } from "@/app/store";
 
-const baseNavItems: { id: Screen; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+const baseNavItems: { id: Screen; label: string; icon: React.ReactNode; adminOnly?: boolean; userOnly?: boolean }[] = [
   { id: "dashboard",     label: "Dashboard",     icon: <LayoutDashboard size={18} strokeWidth={1.8} /> },
   { id: "rx",            label: "Rx Assistant",  icon: <MessageSquare    size={18} strokeWidth={1.8} /> },
   { id: "duty",          label: "Duty tracker",  icon: <Clock            size={18} strokeWidth={1.8} /> },
   { id: "caselog",       label: "Case log",      icon: <List             size={18} strokeWidth={1.8} /> },
   { id: "search",        label: "Search",        icon: <Search           size={18} strokeWidth={1.8} /> },
   { id: "notifications", label: "Notifications", icon: <Bell             size={18} strokeWidth={1.8} /> },
-  { id: "feedback",      label: "Feedback",      icon: <MessageCircle    size={18} strokeWidth={1.8} /> },
+  // Feedback submission is for regular users; admins review it in the Admin screen
+  { id: "feedback",      label: "Feedback",      icon: <MessageCircle    size={18} strokeWidth={1.8} />, userOnly: true },
   { id: "admin",         label: "Admin",         icon: <Settings         size={18} strokeWidth={1.8} />, adminOnly: true },
 ];
 
@@ -34,8 +35,10 @@ export function Sidebar() {
   const { state, navigate, set, signOut, uploadAvatar } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Only show admin nav item to admins
-  const navItems = baseNavItems.filter((item) => !item.adminOnly || state.isAdmin);
+  // Admin-only items show only to admins; user-only items (Feedback) hide for admins
+  const navItems = baseNavItems.filter(
+    (item) => (!item.adminOnly || state.isAdmin) && (!item.userOnly || !state.isAdmin)
+  );
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

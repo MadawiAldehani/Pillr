@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Inbox, Users } from "lucide-react";
+import { Inbox, Users, LifeBuoy } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { useApp } from "@/app/store";
 
@@ -29,16 +29,17 @@ function initials(name: string) {
 }
 
 export function AdminScreen() {
-  const { state, fetchUsers, fetchFeedback, markFeedbackRead } = useApp();
-  const [tab, setTab] = useState<"users" | "feedback">("users");
+  const { state, fetchUsers, fetchFeedback, markFeedbackRead, fetchContactMessages, markContactRead } = useApp();
+  const [tab, setTab] = useState<"users" | "feedback" | "contact">("users");
 
   useEffect(() => {
     if (tab === "users")    fetchUsers();
     if (tab === "feedback") fetchFeedback();
+    if (tab === "contact")  fetchContactMessages();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const { userRows, usersLoading, feedbackItems, unreadFeedbackCount } = state;
+  const { userRows, usersLoading, feedbackItems, unreadFeedbackCount, contactMessages, unreadContactCount } = state;
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const now       = Date.now();
@@ -57,8 +58,9 @@ export function AdminScreen() {
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--border)" }}>
         {([
-          { id: "users",    label: "Users",    icon: <Users size={14} /> },
-          { id: "feedback", label: "Feedback", icon: <Inbox size={14} /> },
+          { id: "users",    label: "Users",         icon: <Users size={14} />,    badge: 0 },
+          { id: "feedback", label: "Feedback",      icon: <Inbox size={14} />,    badge: unreadFeedbackCount },
+          { id: "contact",  label: "Sign-in help",  icon: <LifeBuoy size={14} />, badge: unreadContactCount },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -71,13 +73,13 @@ export function AdminScreen() {
               color: tab === t.id ? "var(--accent)" : "var(--text-secondary)",
               fontFamily: "'IBM Plex Sans',sans-serif",
               fontWeight: tab === t.id ? 600 : 400,
-              fontSize: 13.5, cursor: "pointer",
+              fontSize: 13.5, cursor: "pointer", whiteSpace: "nowrap",
             }}
           >
             {t.icon} {t.label}
-            {t.id === "feedback" && unreadFeedbackCount > 0 && (
+            {t.badge > 0 && (
               <span style={{ background: "var(--major-text)", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>
-                {unreadFeedbackCount}
+                {t.badge}
               </span>
             )}
           </button>
@@ -222,6 +224,57 @@ export function AdminScreen() {
                   </Card>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Sign-in help (contact) tab ── */}
+      {tab === "contact" && (
+        <>
+          {contactMessages.length === 0 ? (
+            <Card style={{ textAlign: "center", padding: "56px 20px" }}>
+              <LifeBuoy size={28} color="var(--text-faint)" style={{ marginBottom: 10 }} />
+              <div style={{ fontSize: 14, color: "var(--text-muted)" }}>No messages yet</div>
+              <div style={{ fontSize: 13, color: "var(--text-faint)", marginTop: 4 }}>
+                Messages from the login page&apos;s &ldquo;Contact us&rdquo; form appear here
+              </div>
+            </Card>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {contactMessages.map((item) => (
+                <Card key={item.id} style={{ borderLeft: item.read ? "3px solid var(--border)" : "3px solid var(--accent)", opacity: item.read ? 0.8 : 1 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                        {!item.read && (
+                          <span style={{ background: "var(--accent)", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 700, padding: "1px 7px" }}>New</span>
+                        )}
+                        {item.email ? (
+                          <a href={`mailto:${item.email}`} style={{ fontSize: 12.5, color: "var(--accent-soft-text)", fontWeight: 600, textDecoration: "none" }}>
+                            {item.email}
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No email provided</span>
+                        )}
+                        <span style={{ fontSize: 11.5, color: "var(--text-faint)", marginLeft: "auto" }}>
+                          {new Date(item.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          {" · "}{new Date(item.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13.5, color: "var(--text-primary)", margin: 0, lineHeight: 1.65 }}>{item.message}</p>
+                    </div>
+                    {!item.read && (
+                      <button
+                        onClick={() => markContactRead(item.id)}
+                        style={{ flexShrink: 0, height: 32, padding: "0 12px", background: "var(--subtle-bg)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: 7, cursor: "pointer", fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 500, fontSize: 12, whiteSpace: "nowrap" }}
+                      >
+                        Mark as read
+                      </button>
+                    )}
+                  </div>
+                </Card>
+              ))}
             </div>
           )}
         </>

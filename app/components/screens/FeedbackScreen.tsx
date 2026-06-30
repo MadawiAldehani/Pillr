@@ -12,12 +12,37 @@ const CATEGORIES = [
 ];
 
 export function FeedbackScreen() {
-  const { submitFeedback, showToast } = useApp();
+  const { state, navigate, submitFeedback, showToast } = useApp();
 
   const [category, setCategory] = useState("Feature idea");
   const [message, setMessage]   = useState("");
   const [loading, setLoading]   = useState(false);
   const [done, setDone]         = useState(false);
+
+  // Admins don't submit feedback — they review it in the Admin dashboard
+  if (state.isAdmin) {
+    return (
+      <div style={{ padding: "clamp(18px,3vw,26px) clamp(16px,3.5vw,32px)" }}>
+        <Card style={{ textAlign: "center", padding: "48px 32px", maxWidth: 480, margin: "32px auto" }}>
+          <MessageCircle size={26} color="var(--text-faint)" style={{ marginBottom: 12 }} />
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Feedback is in your Admin dashboard</div>
+          <div style={{ fontSize: 13.5, color: "var(--text-secondary)", marginBottom: 22, lineHeight: 1.6 }}>
+            As an admin you receive and review feedback there — no need to submit it yourself.
+          </div>
+          <button
+            onClick={() => navigate("admin")}
+            style={{
+              height: 40, padding: "0 20px",
+              background: "var(--accent)", color: "#fff", border: "none", borderRadius: 9,
+              cursor: "pointer", fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 600, fontSize: 13.5,
+            }}
+          >
+            Go to Admin
+          </button>
+        </Card>
+      </div>
+    );
+  }
 
   const handleSubmit = async () => {
     if (!message.trim()) return;

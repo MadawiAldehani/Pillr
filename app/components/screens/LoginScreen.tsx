@@ -42,7 +42,7 @@ async function isPasswordBreached(password: string): Promise<boolean> {
 }
 
 export function LoginScreen() {
-  const { state, set, signIn, signUp, sendPasswordReset } = useApp();
+  const { state, set, signIn, signUp, sendPasswordReset, submitContact } = useApp();
   const [showPw, setShowPw] = useState(false);
   const [breachChecking, setBreachChecking] = useState(false);
   const [email, setEmail] = useState("");
@@ -54,7 +54,31 @@ export function LoginScreen() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState("");
+  // Contact / "trouble signing in" form
+  const [contactMode, setContactMode] = useState(false);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const [contactError, setContactError] = useState("");
   const isSignup = state.authMode === "signup";
+
+  const handleContact = async () => {
+    setContactError("");
+    if (!contactMessage.trim()) {
+      setContactError("Please write a message so we can help.");
+      return;
+    }
+    setContactLoading(true);
+    try {
+      await submitContact(contactEmail, contactMessage);
+      setContactSent(true);
+    } catch (e: unknown) {
+      setContactError(e instanceof Error ? e.message : "Could not send. Please try again.");
+    } finally {
+      setContactLoading(false);
+    }
+  };
 
   const handleForgot = async () => {
     setForgotError("");
@@ -169,12 +193,99 @@ export function LoginScreen() {
             <PillLogo />
           </div>
           <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-            {forgotMode ? "Reset your password" : isSignup ? "Create your account" : "Pharmacist companion"}
+            {contactMode ? "Contact us" : forgotMode ? "Reset your password" : isSignup ? "Create your account" : "Pharmacist companion"}
           </div>
         </div>
 
-        {/* ── FORGOT PASSWORD MODE ── */}
-        {forgotMode ? (
+        {/* ── CONTACT MODE ── */}
+        {contactMode ? (
+          contactSent ? (
+            <div>
+              <div
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  background: "#F0FAF4", border: "1px solid #9FD4B2",
+                  borderRadius: 8, padding: "12px 14px", marginBottom: 20,
+                }}
+              >
+                <CheckCircle size={15} color="#22863a" style={{ marginTop: 1, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: "#22863a", lineHeight: 1.5 }}>
+                  Thanks — your message was sent to the admin.{contactEmail.trim() ? " We'll reply to your email." : ""}
+                </span>
+              </div>
+              <button
+                onClick={() => { setContactMode(false); setContactSent(false); setContactEmail(""); setContactMessage(""); setContactError(""); }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "100%", height: 44, borderRadius: 10, border: "1px solid var(--border)",
+                  cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 14,
+                  background: "var(--card-bg)", color: "var(--text-primary)",
+                }}
+              >
+                Back to sign in
+              </button>
+            </div>
+          ) : (
+            <>
+              {contactError && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--major-bg)", border: "1px solid #F0CFCB", borderRadius: 8, padding: "9px 12px", marginBottom: 14 }}>
+                  <AlertCircle size={14} color="var(--major-text)" />
+                  <span style={{ fontSize: 12.5, color: "var(--major-text)" }}>{contactError}</span>
+                </div>
+              )}
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
+                Having trouble signing in, or want to reach the team? Send a message and we&apos;ll get back to you.
+              </p>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Your email <span style={{ color: "var(--text-faint)" }}>— optional, so we can reply</span></label>
+                <input
+                  style={inputStyle}
+                  type="email"
+                  placeholder="you@example.com"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Message</label>
+                <textarea
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  rows={5}
+                  placeholder="Describe the issue you're facing…"
+                  style={{
+                    display: "block", width: "100%",
+                    border: "1px solid var(--input-border)", borderRadius: 8,
+                    padding: "10px 12px", fontFamily: "'IBM Plex Sans', sans-serif",
+                    fontSize: 13.5, color: "var(--text-primary)", outline: "none",
+                    background: "var(--card-bg)", resize: "vertical", lineHeight: 1.5,
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleContact}
+                disabled={contactLoading}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "100%", height: 44, marginTop: 18, borderRadius: 10, border: "none",
+                  cursor: contactLoading ? "not-allowed" : "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 14,
+                  background: contactLoading ? "var(--disabled)" : "var(--accent)", color: "#fff",
+                }}
+              >
+                {contactLoading ? "Sending…" : "Send message"}
+              </button>
+              <div style={{ textAlign: "center", marginTop: 16 }}>
+                <button
+                  onClick={() => { setContactMode(false); setContactError(""); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent)", fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, padding: 0 }}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            </>
+          )
+        ) : /* ── FORGOT PASSWORD MODE ── */ forgotMode ? (
           forgotSent ? (
             <div>
               <div
@@ -406,6 +517,20 @@ export function LoginScreen() {
                 {isSignup ? "Sign in" : "Create account"}
               </button>
             </div>
+
+            {/* Trouble / contact link */}
+            <div style={{ textAlign: "center", marginTop: 14 }}>
+              <button
+                onClick={() => { setContactMode(true); setContactError(""); setContactSent(false); }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text-muted)", fontFamily: "'IBM Plex Sans', sans-serif",
+                  fontSize: 12.5, padding: 0, textDecoration: "underline",
+                }}
+              >
+                Trouble signing in? Contact us
+              </button>
+            </div>
           </>
         )}
 
@@ -416,7 +541,7 @@ export function LoginScreen() {
             borderTop: "1px solid var(--border-2)", paddingTop: 14,
           }}
         >
-          State of Kuwait · Ministry of Health
+          State of Kuwait
         </div>
       </div>
     </div>

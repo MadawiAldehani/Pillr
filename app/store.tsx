@@ -54,6 +54,14 @@ export interface FeedbackItem {
   createdAt: string;
 }
 
+export interface ContactMessage {
+  id: string;
+  email: string | null;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface Shift {
   id: string;
   type: "day" | "oncall";
@@ -144,6 +152,10 @@ export interface AppState {
   // Feedback
   feedbackItems: FeedbackItem[];
   unreadFeedbackCount: number;
+
+  // Contact (sign-in help) messages — admin inbox
+  contactMessages: ContactMessage[];
+  unreadContactCount: number;
 }
 
 const initialMessages: ChatMessage[] = [
@@ -237,6 +249,9 @@ const initialState: AppState = {
 
   feedbackItems: [],
   unreadFeedbackCount: 0,
+
+  contactMessages: [],
+  unreadContactCount: 0,
 };
 
 interface AppContextType {
@@ -260,6 +275,9 @@ interface AppContextType {
   fetchFeedback: () => Promise<void>;
   markFeedbackRead: (id: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
+  submitContact: (email: string, message: string) => Promise<void>;
+  fetchContactMessages: () => Promise<void>;
+  markContactRead: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -687,8 +705,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // ── Contact (sign-in help) messages ──
+  // Submitted from the login screen with NO authentication — RLS allows an
+  // anonymous insert (with a length guard). Used when users can't sign in.
+  const submitContact = async (email: string, message: string) => {
+    const { error } = await supabase.from("contact_messages").insert({
+      email: email.trim() || null,
+      message: message.trim(),
+    });
+    if (error) throw new Error("Could not send your message. Please try again.");
+  };
+
+  const fetchContactMessages = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data: adminCheck } = await supabase
+      .from("profiles").select("is_admin").eq("id", session.user.id).single();
+    if (!adminCheck?.is_admin) return;
+
+    const { data } = await supabase
+      .from("contact_messages").select("*").order("created_at", { ascending: false });
+    if (data) {
+      const items: ContactMessage[] = data.map((r) => ({
+        id: r.id, email: r.email || null, message: r.message, read: r.read, createdAt: r.created_at,
+      }));
+      set({ contactMessages: items, unreadContactCount: items.filter((i) => !i.read).length });
+    }
+  };
+
+  const markContactRead = async (id: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data: profile } = await supabase
+      .from("profiles").select("is_admin").eq("id", session.user.id).single();
+    if (!profile?.is_admin) return;
+
+    await supabase.from("contact_messages").update({ read: true }).eq("id", id);
+    setState((s) => ({
+      ...s,
+      contactMessages: s.contactMessages.map((i) => i.id === id ? { ...i, read: true } : i),
+      unreadContactCount: Math.max(0, s.unreadContactCount - 1),
+    }));
+  };
+
   return (
-    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, sendPasswordReset, updatePassword, fetchCases, addCase, uploadAvatar, fetchShifts, clockIn, clockOut, addOnCallShift, submitFeedback, fetchFeedback, markFeedbackRead, fetchUsers }}>
+    <AppContext.Provider value={{ state, set, showToast, navigate, signIn, signUp, signOut, sendPasswordReset, updatePassword, fetchCases, addCase, uploadAvatar, fetchShifts, clockIn, clockOut, addOnCallShift, submitFeedback, fetchFeedback, markFeedbackRead, fetchUsers, submitContact, fetchContactMessages, markContactRead }}>
       {children}
     </AppContext.Provider>
   );

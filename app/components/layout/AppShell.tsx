@@ -37,10 +37,10 @@ function BottomNav() {
     { id: "duty",      icon: <Clock           size={20} strokeWidth={1.8} />, label: "Duty" },
     { id: "caselog",   icon: <List            size={20} strokeWidth={1.8} />, label: "Cases" },
     { id: "search",    icon: <Search          size={20} strokeWidth={1.8} />, label: "Search" },
-    { id: "feedback",  icon: <MessageCircle   size={20} strokeWidth={1.8} />, label: "Feedback" },
+    // Admins get the Admin tab (where they review feedback); regular users get Feedback
     ...(state.isAdmin
-      ? [{ id: "admin" as Screen, icon: <Settings size={20} strokeWidth={1.8} />, label: "Admin" }]
-      : []),
+      ? [{ id: "admin" as Screen,    icon: <Settings      size={20} strokeWidth={1.8} />, label: "Admin" }]
+      : [{ id: "feedback" as Screen, icon: <MessageCircle size={20} strokeWidth={1.8} />, label: "Feedback" }]),
   ];
 
   return (

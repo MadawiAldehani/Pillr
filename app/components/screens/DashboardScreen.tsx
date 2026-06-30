@@ -1,9 +1,16 @@
 "use client";
-import { useEffect } from "react";
-import { MessageSquare, FileText, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MessageSquare, FileText, AlertTriangle, Clock, LogIn, LogOut, CheckCircle2 } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
 import { useApp } from "@/app/store";
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Sunday=0 … Thursday=4 are the work days in Kuwait
+const WORK_DAYS = new Set([0, 1, 2, 3, 4]);
 
 function StatCard({
   label, value, sub, progress, total, color,
@@ -41,10 +48,13 @@ function StatCard({
 }
 
 export function DashboardScreen() {
-  const { state, navigate, set, showToast, fetchShifts, fetchCases } = useApp();
+  const { state, navigate, set, showToast, fetchShifts, fetchCases, clockIn, clockOut } = useApp();
 
   const now = new Date();
   const today = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  const [elapsed, setElapsed] = useState("");
+  const [busy, setBusy] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -52,6 +62,33 @@ export function DashboardScreen() {
     fetchShifts(now.getFullYear(), now.getMonth());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live elapsed counter while clocked in
+  useEffect(() => {
+    if (!state.clockedIn || !state.clockInTime) { setElapsed(""); return; }
+    const tick = () => {
+      const diff = Date.now() - new Date(state.clockInTime!).getTime();
+      const h = Math.floor(diff / 3_600_000);
+      const m = Math.floor((diff % 3_600_000) / 60_000);
+      setElapsed(`${h}h ${m}m`);
+    };
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [state.clockedIn, state.clockInTime]);
+
+  const handleClockToggle = async () => {
+    setBusy(true);
+    try {
+      if (state.clockedIn && state.activeShiftId) {
+        await clockOut(state.activeShiftId);
+        showToast("Clocked out — shift saved");
+      } else {
+        await clockIn();
+        showToast("Clocked in successfully");
+      }
+    } finally { setBusy(false); }
+  };
 
   // ── Computed stats ──────────────────────────────────────────────────────────
 
@@ -85,14 +122,28 @@ export function DashboardScreen() {
     return sum + ms / 3_600_000;
   }, 0);
 
-  // Shift compliance: unique days with ≥1 shift / days elapsed this month
-  const daysWithShifts = new Set(state.shifts.map(s => localDateStr(new Date(s.clockedInAt)))).size;
-  const daysPassed     = now.getDate();
-  const compliance     = state.shifts.length === 0
-    ? 0
-    : Math.min(100, Math.round((daysWithShifts / Math.max(1, daysPassed)) * 100));
+  // ── Shift compliance — Kuwait work days (Sun–Thu) ──
+  // Required = all work days in the month; completed = unique work days with a day shift logged.
+  let requiredShifts = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (WORK_DAYS.has(new Date(now.getFullYear(), now.getMonth(), d).getDay())) requiredShifts++;
+  }
+  const workDaysCovered = new Set(
+    state.shifts
+      .filter(s => s.type === "day" && WORK_DAYS.has(new Date(s.clockedInAt).getDay()))
+      .map(s => localDateStr(new Date(s.clockedInAt)))
+  ).size;
+  const completedShifts = Math.min(workDaysCovered, requiredShifts);
+  const compliance      = requiredShifts === 0 ? 0 : Math.round((completedShifts / requiredShifts) * 100);
   const complianceLabel = compliance >= 80 ? "On track" : compliance >= 50 ? "At risk" : "Needs attention";
   const complianceColor = compliance >= 80 ? "var(--accent)" : "var(--amber-text)";
+
+  // ── Clock-in warning — work day, past shift start, not clocked in, nothing logged today ──
+  const isWorkDayToday   = WORK_DAYS.has(now.getDay());
+  const [startH, startM] = (state.dayShiftStart || "08:00").split(":").map(Number);
+  const shiftStartToday  = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH || 8, startM || 0);
+  const hasDayShiftToday = todayShifts.some(s => s.type === "day");
+  const showClockInWarning = isWorkDayToday && now >= shiftStartToday && !state.clockedIn && !hasDayShiftToday;
 
   // Flagged cases that haven't been resolved yet (exclude count-only entries)
   const resolvedFlagged = state.cases.filter(
@@ -124,6 +175,59 @@ export function DashboardScreen() {
         </button>
       </div>
 
+      {/* ── Adaptive shift card — quick clock-in / live timer / not-clocked-in warning ── */}
+      <Card
+        style={{
+          marginBottom: 16,
+          display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+          background: showClockInWarning ? "var(--amber-bg)" : "var(--card-bg)",
+          border: showClockInWarning ? "1px solid var(--amber-border)" : undefined,
+        }}
+      >
+        <div
+          style={{
+            width: 42, height: 42, borderRadius: 11, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: state.clockedIn
+              ? "var(--accent-soft)"
+              : showClockInWarning ? "#F3E3C2" : "var(--border-2)",
+          }}
+        >
+          {state.clockedIn
+            ? <CheckCircle2 size={21} color="var(--accent)" strokeWidth={2} />
+            : <Clock size={21} color={showClockInWarning ? "var(--amber-text)" : "var(--text-muted)"} strokeWidth={2} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 150 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: showClockInWarning ? "var(--amber-text)" : "var(--text-primary)" }}>
+            {state.clockedIn ? "You're on shift" : showClockInWarning ? "You haven't clocked in yet" : "Off shift"}
+          </div>
+          <div style={{ fontSize: 12.5, color: showClockInWarning ? "var(--amber-text)" : "var(--text-muted)", marginTop: 2 }}>
+            {state.clockedIn && state.clockInTime
+              ? `Started ${formatTime(state.clockInTime)} · ${elapsed} elapsed`
+              : showClockInWarning
+                ? `Your day shift started at ${state.dayShiftStart || "08:00"} — tap to clock in`
+                : hasDayShiftToday ? "Day shift completed today ✓" : "No active shift"}
+          </div>
+        </div>
+        <button
+          onClick={handleClockToggle}
+          disabled={busy}
+          style={{
+            display: "flex", alignItems: "center", gap: 7,
+            height: 40, padding: "0 18px",
+            background: state.clockedIn ? "transparent" : "var(--accent)",
+            color: state.clockedIn ? "var(--major-text)" : "#fff",
+            border: state.clockedIn ? "1.5px solid var(--major-text)" : "none",
+            borderRadius: 9, cursor: busy ? "not-allowed" : "pointer",
+            fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 13.5,
+            opacity: busy ? 0.6 : 1, flexShrink: 0,
+          }}
+        >
+          {state.clockedIn ? <LogOut size={15} strokeWidth={2} /> : <LogIn size={15} strokeWidth={2} />}
+          {busy ? "…" : state.clockedIn ? "Clock out" : "Clock in"}
+        </button>
+      </Card>
+
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px,1fr))", gap: 12, marginBottom: 16 }}>
         <StatCard
@@ -143,7 +247,11 @@ export function DashboardScreen() {
           value={casesThisMonth.length}
           sub={`${casesDelta >= 0 ? "+" : ""}${casesDelta} vs last month`}
         />
-        <StatCard label="DRPs caught" value={drpsThisMonth} />
+        <StatCard
+          label="DRPs caught"
+          value={drpsThisMonth}
+          sub={`${drpsThisMonth === 1 ? "intervention" : "interventions"} this month`}
+        />
       </div>
 
       {/* Compliance banner */}
@@ -155,7 +263,9 @@ export function DashboardScreen() {
           }}
         />
         <div style={{ flex: 1, minWidth: 120 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 5 }}>Shift compliance</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 5 }}>
+            Shift compliance · <span style={{ color: "var(--accent-soft-text)" }}>{completedShifts}/{requiredShifts} work days covered</span>
+          </div>
           <div style={{ height: 5, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${compliance}%`, background: complianceColor, borderRadius: 99, transition: "width 0.4s" }} />
           </div>

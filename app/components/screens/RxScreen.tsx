@@ -1,11 +1,49 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Send, Save, ExternalLink, Flag, X, AlertCircle, Copy, Check } from "lucide-react";
+import { Send, Save, ExternalLink, Flag, X, AlertCircle, Copy, Check, Star, Share2, MessageSquarePlus } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { SeverityBadge } from "@/app/components/ui/Badge";
-import { useApp, ChatMode, Severity } from "@/app/store";
+import { useApp, ChatMode, Severity, ChatMessage } from "@/app/store";
 import { createClient } from "@/lib/supabase";
+
+// ── Conversation + favourites persistence (localStorage) ──────────────────────
+interface Convo { id: string; label: string; mode: ChatMode; messages: ChatMessage[]; updatedAt: number; }
+const CONVOS_KEY = "pillr_rx_convos_v1";
+const FAVS_KEY   = "pillr_rx_favourites_v1";
+
+function loadConvos(): Convo[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(CONVOS_KEY) || "[]"); } catch { return []; }
+}
+function saveConvos(convos: Convo[]) {
+  if (typeof window !== "undefined") {
+    // Keep the 50 most-recent threads to bound storage
+    const trimmed = [...convos].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 50);
+    localStorage.setItem(CONVOS_KEY, JSON.stringify(trimmed));
+  }
+}
+function loadFavs(): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(FAVS_KEY) || "[]"); } catch { return []; }
+}
+function saveFavs(favs: string[]) {
+  if (typeof window !== "undefined") localStorage.setItem(FAVS_KEY, JSON.stringify(favs.slice(0, 30)));
+}
+
+// Build a shareable / copyable plain-text report from an assistant message
+function formatMessageText(msg: ChatMessage, userQuery?: string): string {
+  const parts: string[] = [];
+  parts.push("💊 Pillr — Rx Assistant");
+  if (userQuery) parts.push(`\nQuery: ${userQuery}`);
+  if (msg.severity) parts.push(`Severity: ${msg.severity}`);
+  parts.push(`\n${msg.content}`);
+  if (msg.counselling?.length) parts.push("\nPatient Counselling:\n" + msg.counselling.map((c) => `• ${c}`).join("\n"));
+  if (msg.keyPoints?.length)   parts.push("\nKey Points:\n" + msg.keyPoints.map((p) => `• ${p}`).join("\n"));
+  if (msg.fdaSources?.length)  parts.push("\nFDA sources:\n" + msg.fdaSources.map((s) => `• ${s.name}: ${s.url}`).join("\n"));
+  parts.push("\n⚠️ AI-generated decision support — always verify before acting.");
+  return parts.join("\n");
+}
 
 function ThinkingDots() {
   return (
@@ -40,6 +78,8 @@ export function RxScreen() {
   );
   const [diseaseInput, setDiseaseInput] = useState("");
   const [allergyInput, setAllergyInput] = useState("");
+  const [favourites, setFavourites] = useState<string[]>(() => loadFavs());
+  const [sharedId, setSharedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const showPreg =
     state.patientSex === "Female" &&
@@ -49,6 +89,67 @@ export function RxScreen() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [state.messages, state.isThinking]);
+
+  // Load saved conversations on mount — replaces the decorative demo history
+  useEffect(() => {
+    const convos = loadConvos();
+    if (convos.length > 0) {
+      const sorted = [...convos].sort((a, b) => b.updatedAt - a.updatedAt);
+      set({
+        historyList: sorted.map((c) => ({ id: c.id, label: c.label, mode: c.mode })),
+        messages: sorted[0].messages,
+        activeHistoryId: sorted[0].id,
+        chatMode: sorted[0].mode,
+      });
+    } else {
+      // No saved chats yet — clear the placeholder items but keep the demo thread visible
+      set({ historyList: [] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Start a brand-new empty conversation
+  const newChat = () => {
+    set({ messages: [], activeHistoryId: `h${Date.now()}` });
+    setInput("");
+  };
+
+  // Load a saved conversation into the main view
+  const loadConvo = (id: string) => {
+    const convo = loadConvos().find((c) => c.id === id);
+    if (convo) {
+      set({ messages: convo.messages, activeHistoryId: id, chatMode: convo.mode });
+    }
+  };
+
+  // Save / unsave the current input as a favourite check
+  const toggleFavourite = (text: string) => {
+    const q = text.trim();
+    if (!q) return;
+    setFavourites((prev) => {
+      const next = prev.includes(q) ? prev.filter((f) => f !== q) : [q, ...prev];
+      saveFavs(next);
+      return next;
+    });
+  };
+
+  // Share an assistant response via the native share sheet (WhatsApp etc.)
+  const handleShare = async (msg: ChatMessage) => {
+    const userQuery = [...state.messages].reverse().find((m) => m.role === "user" && state.messages.indexOf(m) < state.messages.indexOf(msg))?.content;
+    const text = formatMessageText(msg, userQuery);
+    const nav = navigator as Navigator & { share?: (data: { title?: string; text?: string }) => Promise<void> };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({ title: "Pillr — Rx Assistant", text });
+        return;
+      } catch {
+        // user cancelled or share failed — fall through to WhatsApp
+      }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    setSharedId(msg.id);
+    setTimeout(() => setSharedId(null), 2000);
+  };
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -69,7 +170,10 @@ export function RxScreen() {
       mode: state.chatMode,
     };
 
-    const currentMessages = [...state.messages, userMsg];
+    // Drop the seeded demo thread the first time a real message is sent
+    const isDemo = state.messages.some((m) => m.id === "m1" || m.id === "m2");
+    const baseMessages = isDemo ? [] : state.messages;
+    const currentMessages = [...baseMessages, userMsg];
     set({ messages: currentMessages, isThinking: true });
     setInput("");
 
@@ -110,13 +214,27 @@ export function RxScreen() {
         fdaDataFound: (data.fdaDataFound as boolean | undefined) ?? false,
       };
 
+      const newMessages = [...currentMessages, aiMsg];
+
+      // Persist the thread as a conversation so the history pane can reload it
+      const convos = loadConvos();
+      const activeId = (!isDemo && state.activeHistoryId) ? state.activeHistoryId : `h${Date.now()}`;
+      const existing = convos.find((c) => c.id === activeId);
+      if (existing) {
+        existing.messages = newMessages;
+        existing.updatedAt = Date.now();
+        if (newMessages.filter((m) => m.role === "user").length <= 1) existing.label = query.slice(0, 36);
+      } else {
+        convos.unshift({ id: activeId, label: query.slice(0, 36), mode: state.chatMode, messages: newMessages, updatedAt: Date.now() });
+      }
+      saveConvos(convos);
+      const sorted = [...convos].sort((a, b) => b.updatedAt - a.updatedAt);
+
       set({
-        messages: [...currentMessages, aiMsg],
+        messages: newMessages,
         isThinking: false,
-        historyList: [
-          { id: `h${Date.now()}`, label: query.slice(0, 36), mode: state.chatMode },
-          ...state.historyList,
-        ],
+        activeHistoryId: activeId,
+        historyList: sorted.map((c) => ({ id: c.id, label: c.label, mode: c.mode })),
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -160,15 +278,32 @@ export function RxScreen() {
           overflowY: "auto",
         }}
       >
-        <div style={{ padding: "16px 14px 10px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ padding: "14px 14px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             Recent chats
           </div>
+          <button
+            onClick={newChat}
+            title="New chat"
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: "var(--accent-soft)", color: "var(--accent-soft-text)",
+              border: "1px solid var(--accent-border)", borderRadius: 7,
+              padding: "4px 9px", cursor: "pointer",
+              fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 11.5,
+            }}
+          >
+            <MessageSquarePlus size={13} /> New
+          </button>
         </div>
-        {state.historyList.map((h) => (
+        {state.historyList.length === 0 ? (
+          <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            No saved chats yet.<br />Your conversations will appear here.
+          </div>
+        ) : state.historyList.map((h) => (
           <button
             key={h.id}
-            onClick={() => set({ activeHistoryId: h.id })}
+            onClick={() => loadConvo(h.id)}
             style={{
               textAlign: "left",
               padding: "11px 14px",
@@ -552,6 +687,19 @@ export function RxScreen() {
                         : <><Copy size={13} /><span>Copy</span></>
                       }
                     </button>
+                    <button
+                      onClick={() => handleShare(msg)}
+                      title="Share via WhatsApp"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: sharedId === msg.id ? "var(--accent)" : "var(--text-muted)", padding: 4, borderRadius: 6,
+                        display: "flex", alignItems: "center", gap: 4,
+                        fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif",
+                        transition: "color 0.15s",
+                      }}
+                    >
+                      <Share2 size={13} /><span>Share</span>
+                    </button>
                     {msg.fdaSources && msg.fdaSources.length > 0 && (
                       <>
                         <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
@@ -600,15 +748,33 @@ export function RxScreen() {
         </div>
 
         {/* Composer */}
-        <div
-          style={{
-            padding: "14px 20px",
-            borderTop: "1px solid var(--border)",
-            background: "#fff",
-            display: "flex",
-            gap: 8,
-          }}
-        >
+        <div style={{ borderTop: "1px solid var(--border)", background: "var(--card-bg)" }}>
+          {/* Favourite checks — tap to load, ⭐ to manage */}
+          {favourites.length > 0 && (
+            <div style={{ display: "flex", gap: 6, padding: "10px 20px 0", overflowX: "auto", alignItems: "center" }}>
+              <Star size={13} color="var(--amber-text)" fill="var(--amber-text)" style={{ flexShrink: 0 }} />
+              {favourites.map((f) => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 999, padding: "3px 4px 3px 11px" }}>
+                  <button
+                    onClick={() => setInput(f)}
+                    title="Load this check"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-soft-text)", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", padding: 0 }}
+                  >
+                    {f}
+                  </button>
+                  <button
+                    onClick={() => toggleFavourite(f)}
+                    title="Remove favourite"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent-soft-text)", display: "flex", padding: 2 }}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Input row */}
+          <div style={{ padding: "14px 20px", display: "flex", gap: 8 }}>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -627,6 +793,22 @@ export function RxScreen() {
               color: "var(--text-primary)",
             }}
           />
+          <button
+            onClick={() => toggleFavourite(input)}
+            disabled={!input.trim()}
+            title={favourites.includes(input.trim()) ? "Remove from favourites" : "Save as favourite"}
+            style={{
+              width: 42, height: 42, borderRadius: 9,
+              border: "1px solid var(--input-border)",
+              background: "var(--card-bg)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: input.trim() ? "pointer" : "not-allowed",
+              opacity: input.trim() ? 1 : 0.5,
+              color: favourites.includes(input.trim()) ? "var(--amber-text)" : "var(--text-muted)",
+            }}
+          >
+            <Star size={16} fill={favourites.includes(input.trim()) ? "var(--amber-text)" : "none"} />
+          </button>
           <button
             onClick={handleSend}
             style={{
@@ -651,6 +833,7 @@ export function RxScreen() {
             <Save size={15} strokeWidth={2} />
             Save case
           </button>
+          </div>
         </div>
       </div>
     </div>

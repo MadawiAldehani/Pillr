@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { MessageSquare, FileText, AlertTriangle, Clock, LogIn, LogOut, CheckCircle2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { MessageSquare, FileText, AlertTriangle, Clock, LogIn, LogOut, CheckCircle2, Camera, Loader } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SeverityBadge } from "@/app/components/ui/Badge";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
@@ -8,6 +8,10 @@ import { useApp } from "@/app/store";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
 // Sunday=0 … Thursday=4 are the work days in Kuwait
@@ -49,13 +53,20 @@ function StatCard({
 }
 
 export function DashboardScreen() {
-  const { state, navigate, set, showToast, fetchShifts, fetchCases, clockIn, clockOut } = useApp();
+  const { state, navigate, set, showToast, fetchShifts, fetchCases, clockIn, clockOut, signOut, uploadAvatar } = useApp();
 
   const now = new Date();
   const today = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   const [elapsed, setElapsed] = useState("");
   const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadAvatar(file);
+    e.target.value = "";
+  };
 
   // Load data on mount
   useEffect(() => {
@@ -153,6 +164,65 @@ export function DashboardScreen() {
 
   return (
     <div style={{ padding: "clamp(18px,3vw,26px) clamp(16px,3.5vw,32px)" }}>
+      {/* ── Profile bar — picture, name, role, sign out ── */}
+      <Card style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Avatar — tap to change */}
+        <div
+          style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}
+          onClick={() => fileInputRef.current?.click()}
+          title="Change profile picture"
+        >
+          {state.avatarUrl ? (
+            <img
+              src={state.avatarUrl}
+              alt="Profile"
+              style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent-border)" }}
+            />
+          ) : (
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#fff" }}>
+              {initials(state.userName) || "?"}
+            </div>
+          )}
+          <div
+            className="avatar-overlay"
+            style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", opacity: state.avatarUploading ? 1 : 0, transition: "opacity 0.15s" }}
+          >
+            {state.avatarUploading
+              ? <Loader size={16} color="#fff" style={{ animation: "spin 1s linear infinite" }} />
+              : <Camera size={15} color="#fff" />}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: "none" }}
+            onChange={handleAvatarChange}
+          />
+        </div>
+
+        {/* Name + role */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {state.userName || "Pharmacist"}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{state.role}</div>
+        </div>
+
+        {/* Sign out */}
+        <button
+          onClick={() => signOut()}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px",
+            background: "transparent", color: "var(--text-secondary)",
+            border: "1px solid var(--border)", borderRadius: 9, cursor: "pointer",
+            fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 13,
+            flexShrink: 0, whiteSpace: "nowrap",
+          }}
+        >
+          <LogOut size={15} strokeWidth={2} /> Sign out
+        </button>
+      </Card>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 12 }}>
         <div>

@@ -80,6 +80,11 @@ export function RxScreen() {
   const [allergyInput, setAllergyInput] = useState("");
   const [favourites, setFavourites] = useState<string[]>(() => loadFavs());
   const [sharedId, setSharedId] = useState<string | null>(null);
+  // "Save case" modal — asks whether this was a DRP / needs doctor follow-up
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveDrp, setSaveDrp] = useState(false);
+  const [saveFlagged, setSaveFlagged] = useState(false);
+  const [saving, setSaving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const showPreg =
     state.patientSex === "Female" &&
@@ -248,19 +253,40 @@ export function RxScreen() {
     }
   };
 
+  // Last savable AI answer (ignore error bubbles)
+  const lastSavableAI = [...state.messages].reverse().find(
+    (m) => m.role === "assistant" && !m.content.startsWith("__error__:")
+  );
+
+  // Open the save modal (reset the toggles each time)
+  const openSaveModal = () => {
+    if (!lastSavableAI) {
+      showToast("Ask the assistant first, then save");
+      return;
+    }
+    setSaveDrp(false);
+    setSaveFlagged(false);
+    setSaveOpen(true);
+  };
+
   const handleSaveCase = async () => {
-    const lastAI = [...state.messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAI) return;
-    await addCase({
-      meds: state.messages.findLast((m) => m.role === "user")?.content ?? "",
-      severity: lastAI.severity ?? "None",
-      drp: false,
-      flagged: false,
-      counsel: lastAI.counselling?.[0] ?? "",
-      source: "Rx",
-      countOnly: false,
-    });
-    showToast("Case saved to log");
+    if (!lastSavableAI) return;
+    setSaving(true);
+    try {
+      await addCase({
+        meds: state.messages.findLast((m) => m.role === "user")?.content ?? "",
+        severity: lastSavableAI.severity ?? "None",
+        drp: saveDrp,
+        flagged: saveFlagged,
+        counsel: lastSavableAI.counselling?.[0] ?? "",
+        source: "Rx",
+        countOnly: false,
+      });
+      setSaveOpen(false);
+      showToast(saveDrp ? "Case saved — flagged as DRP" : "Case saved to log");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -821,7 +847,7 @@ export function RxScreen() {
             <Send size={16} strokeWidth={2} />
           </button>
           <button
-            onClick={handleSaveCase}
+            onClick={openSaveModal}
             style={{
               height: 42, padding: "0 16px", borderRadius: 9,
               background: "var(--navy)", color: "#fff", border: "none",
@@ -836,6 +862,75 @@ export function RxScreen() {
           </div>
         </div>
       </div>
+
+      {/* ── Save case modal — DRP + doctor follow-up ── */}
+      {saveOpen && (
+        <>
+          <div
+            onClick={() => !saving && setSaveOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(15,36,56,0.28)", zIndex: 300 }}
+          />
+          <div
+            className="panel-animate"
+            style={{
+              position: "fixed", top: "50%", left: "50%",
+              transform: "translate(-50%,-50%)",
+              width: "min(420px, calc(100vw - 32px))",
+              background: "var(--card-bg)", borderRadius: 16, border: "1px solid var(--border)",
+              boxShadow: "0 20px 50px -20px rgba(15,36,56,0.45)",
+              padding: "24px 26px", zIndex: 301,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <span style={{ fontSize: 16, fontWeight: 700 }}>Save to case log</span>
+              <button onClick={() => !saving && setSaveOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* What's being saved */}
+            <div style={{ marginBottom: 18 }}>
+              {lastSavableAI?.severity && (
+                <div style={{ marginBottom: 6 }}><SeverityBadge sev={lastSavableAI.severity} /></div>
+              )}
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text-primary)", background: "var(--subtle-bg)", border: "1px solid var(--border-2)", borderRadius: 8, padding: "8px 12px", wordBreak: "break-word", lineHeight: 1.5 }}>
+                {state.messages.findLast((m) => m.role === "user")?.content || "—"}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>
+                  Was this a drug-related problem (DRP)?
+                </label>
+                <SegmentedControl options={["No", "Yes"]} value={saveDrp ? "Yes" : "No"} onChange={(v) => setSaveDrp(v === "Yes")} size="sm" />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>
+                  Flag for doctor follow-up?
+                </label>
+                <SegmentedControl options={["No", "Yes"]} value={saveFlagged ? "Yes" : "No"} onChange={(v) => setSaveFlagged(v === "Yes")} size="sm" />
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveCase}
+              disabled={saving}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                width: "100%", height: 44, marginTop: 22,
+                background: "var(--accent)", color: "#fff", border: "none", borderRadius: 9,
+                cursor: saving ? "not-allowed" : "pointer",
+                fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600, fontSize: 14,
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              <Save size={15} strokeWidth={2} />
+              {saving ? "Saving…" : "Save case"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

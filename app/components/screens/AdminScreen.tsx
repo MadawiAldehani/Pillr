@@ -118,7 +118,9 @@ export function AdminScreen() {
               No users yet
             </Card>
           ) : (
-            <Card style={{ padding: 0, overflow: "hidden" }}>
+            <>
+            {/* Desktop / tablet: table */}
+            <Card className="only-desktop" style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse" }}>
                   <thead>
@@ -176,6 +178,32 @@ export function AdminScreen() {
                 </table>
               </div>
             </Card>
+
+            {/* Mobile: one card per user */}
+            <div className="only-mobile" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {userRows.map((u) => {
+                const seenRecently = u.lastSeenAt && (now - new Date(u.lastSeenAt).getTime()) < 86_400_000;
+                return (
+                  <Card key={u.id} style={{ padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: "var(--accent-soft)", border: "1.5px solid var(--accent-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "var(--accent-soft-text)" }}>
+                        {initials(u.fullName)}
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.fullName}</span>
+                      <span style={{ background: u.role === "Employee" ? "var(--accent-soft)" : "var(--indigo-bg)", color: u.role === "Employee" ? "var(--accent-soft-text)" : "var(--indigo-text)", border: `1px solid ${u.role === "Employee" ? "var(--accent-border)" : "var(--indigo-border)"}`, borderRadius: 999, fontSize: 11, fontWeight: 600, padding: "2px 9px", flexShrink: 0 }}>{u.role}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                      <span>Joined {new Date(u.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, color: seenRecently ? "var(--text-primary)" : "var(--text-muted)" }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: seenRecently ? "var(--accent)" : "var(--text-faint)", flexShrink: 0 }} />
+                        {timeAgo(u.lastSeenAt)}
+                      </span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+            </>
           )}
         </>
       )}

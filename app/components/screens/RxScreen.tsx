@@ -804,7 +804,7 @@ export function RxScreen() {
                 : "Ask a clinical question…"
             }
             style={{
-              flex: 1, height: 42,
+              flex: 1, minWidth: 0, height: 42,
               border: "1px solid var(--input-border)", borderRadius: 9,
               padding: "0 14px",
               fontFamily: "'IBM Plex Mono', monospace",
@@ -841,10 +841,11 @@ export function RxScreen() {
           </button>
           <button
             onClick={openSaveModal}
+            title="Save case"
             style={{
-              height: 42, padding: "0 16px", borderRadius: 9,
+              height: 42, padding: "0 14px", borderRadius: 9, flexShrink: 0,
               background: "var(--navy)", color: "#fff", border: "none",
-              display: "flex", alignItems: "center", gap: 7,
+              display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap",
               cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
               fontWeight: 600, fontSize: 13.5,
             }}

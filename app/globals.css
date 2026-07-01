@@ -98,12 +98,24 @@
 
 * { box-sizing: border-box; }
 
+html, body {
+  /* Never allow the page itself to scroll sideways on mobile */
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   font-family: 'IBM Plex Sans', sans-serif;
   background: var(--page-bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Responsive table / calendar helpers ─────────────────────────────────── */
+/* Show the desktop layout by default; the mobile card layout is hidden. */
+.only-mobile  { display: none; }
+.cal-dots     { display: none; }
+.cal-inner    { min-width: 600px; }   /* calendar keeps its grid on desktop */
 
 .font-mono, .mono {
   font-family: 'IBM Plex Mono', monospace;
@@ -184,4 +196,15 @@ div:hover > .avatar-overlay { opacity: 1 !important; }
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .bottom-nav   { display: flex !important; }
+
+  /* Swap wide tables for stacked cards */
+  .only-desktop { display: none !important; }
+  .only-mobile  { display: block !important; }
+
+  /* Calendar fits the screen — compact cells with dots instead of text */
+  .cal-inner  { min-width: 0 !important; }
+  .cal-detail { display: none !important; }
+  .cal-dots   { display: flex !important; }
+  .cal-cell   { min-height: 52px !important; padding: 6px 3px !important; }
+  .cal-daynum { font-size: 11px !important; }
 }

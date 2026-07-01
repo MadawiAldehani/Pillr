@@ -331,7 +331,7 @@ export function DutyScreen() {
         </div>
 
         <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 600 }}>
+          <div className="cal-inner">
             {/* Day headers */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: "1px solid var(--border)" }}>
               {DAYS.map((d, i) => (
@@ -350,7 +350,7 @@ export function DutyScreen() {
                 {DAYS.map((_, dayIdx) => {
                   const actualDay = week * 7 + dayIdx - firstDayOfWeek + 1;
                   if (actualDay < 1 || actualDay > daysInMonth) {
-                    return <div key={dayIdx} style={{ minHeight: 90, borderRight: "1px solid var(--border-2)", borderBottom: "1px solid var(--border-2)", background: "var(--page-bg)" }} />;
+                    return <div key={dayIdx} className="cal-cell" style={{ minHeight: 90, borderRight: "1px solid var(--border-2)", borderBottom: "1px solid var(--border-2)", background: "var(--page-bg)" }} />;
                   }
 
                   const isToday  = isThisMonth && actualDay === todayDate;
@@ -362,6 +362,7 @@ export function DutyScreen() {
                   return (
                     <div
                       key={dayIdx}
+                      className="cal-cell"
                       style={{
                         minHeight: 90, padding: "8px",
                         borderRight: "1px solid var(--border-2)",
@@ -373,10 +374,22 @@ export function DutyScreen() {
                       }}
                     >
                       {/* Day number */}
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, color: isToday ? "var(--accent-soft-text)" : "var(--text-secondary)" }}>
+                      <div className="cal-daynum" style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, color: isToday ? "var(--accent-soft-text)" : "var(--text-secondary)" }}>
                         {actualDay}
                       </div>
 
+                      {/* Compact dots — mobile only (green = day shift, indigo = on-call) */}
+                      {isWork && (
+                        <div className="cal-dots" style={{ gap: 3, alignItems: "center", flexWrap: "wrap" }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", display: "block", flexShrink: 0 }} />
+                          {onCalls.map((s) => (
+                            <span key={s.id} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--indigo-text)", display: "block", flexShrink: 0 }} />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Detailed content — desktop / tablet */}
+                      <div className="cal-detail">
                       {isOff ? (
                         <div style={{ fontSize: 10.5, color: "var(--text-faint)", border: "1px dashed var(--border)", borderRadius: 4, textAlign: "center", padding: "3px" }}>
                           Off
@@ -418,6 +431,7 @@ export function DutyScreen() {
                           </button>
                         </div>
                       ) : null}
+                      </div>
                     </div>
                   );
                 })}

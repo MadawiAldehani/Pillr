@@ -259,13 +259,27 @@ export function CaseLogScreen() {
             }}
           />
         </div>
-        {/* Severity */}
-        <SegmentedControl
-          options={SEV_OPTIONS}
-          value={sevFilter}
-          onChange={(v) => setSevFilter(v as Severity | "All")}
-          size="sm"
-        />
+        {/* Severity — wrapping chips so nothing gets clipped on mobile */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {SEV_OPTIONS.map((s) => {
+            const active = sevFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setSevFilter(s)}
+                style={{
+                  height: 32, padding: "0 12px", borderRadius: 999, cursor: "pointer",
+                  border: `1.5px solid ${active ? "var(--accent-border)" : "var(--input-border)"}`,
+                  background: active ? "var(--accent-soft)" : "var(--card-bg)",
+                  color: active ? "var(--accent-soft-text)" : "var(--text-secondary)",
+                  fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: active ? 600 : 400, fontSize: 12.5,
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
         {/* Date range */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
@@ -304,7 +318,9 @@ export function CaseLogScreen() {
           </div>
         </Card>
       ) : (
-        <Card style={{ padding: 0, overflow: "hidden" }}>
+        <>
+        {/* Desktop / tablet: full table */}
+        <Card className="only-desktop" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", minWidth: 820, borderCollapse: "collapse" }}>
               <thead>
@@ -376,6 +392,41 @@ export function CaseLogScreen() {
             </table>
           </div>
         </Card>
+
+        {/* Mobile: one card per case (no sideways scrolling) */}
+        <div className="only-mobile" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map((c) => (
+            <Card key={c.id} style={{ padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: c.countOnly ? 0 : 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{c.date}</div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{c.time}</div>
+                </div>
+                {!c.countOnly && <SeverityBadge sev={c.severity} />}
+              </div>
+              {c.countOnly ? (
+                <div style={{ fontStyle: "italic", color: "var(--text-muted)", fontSize: 13 }}>Count only — no details</div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: c.counsel ? 8 : 0 }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text-primary)", wordBreak: "break-word" }}>{c.meds}</span>
+                    <span style={{ background: c.source === "Rx" ? "var(--accent-soft)" : "var(--border-2)", color: c.source === "Rx" ? "var(--accent-soft-text)" : "var(--text-secondary)", borderRadius: 999, fontSize: 10.5, padding: "1px 7px", fontWeight: 600 }}>{c.source}</span>
+                  </div>
+                  {c.counsel && (
+                    <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: (c.drp || c.flagged) ? 8 : 0 }}>{c.counsel}</div>
+                  )}
+                  {(c.drp || c.flagged) && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {c.drp && <span style={{ background: "var(--major-bg)", color: "var(--major-text)", borderRadius: 999, fontSize: 11, fontWeight: 600, padding: "2px 9px" }}>DRP</span>}
+                      {c.flagged && <span style={{ background: "var(--amber-bg)", color: "var(--amber-text)", borderRadius: 999, fontSize: 11, fontWeight: 600, padding: "2px 9px" }}>Flagged for doctor</span>}
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          ))}
+        </div>
+        </>
       )}
 
       {/* Add case modal */}

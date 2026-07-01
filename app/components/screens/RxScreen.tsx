@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Send, Save, ExternalLink, Flag, X, AlertCircle, Copy, Check, Star, Share2, MessageSquarePlus } from "lucide-react";
+import { Send, Save, ExternalLink, X, AlertCircle, Copy, Check, Star, Share2, MessageSquarePlus } from "lucide-react";
 import { Card } from "@/app/components/ui/Card";
 import { SegmentedControl } from "@/app/components/ui/SegmentedControl";
 import { SeverityBadge } from "@/app/components/ui/Badge";
@@ -746,13 +746,6 @@ export function RxScreen() {
                         No FDA label matched — response based on training data only
                       </span>
                     )}
-                    <button
-                      onClick={() => showToast("Flagged for doctor follow-up")}
-                      style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontSize: 12.5, color: "var(--text-secondary)", fontFamily: "'IBM Plex Sans', sans-serif" }}
-                    >
-                      <Flag size={11} />
-                      Flag for doctor follow-up
-                    </button>
                   </div>
                 </Card>
               </div>

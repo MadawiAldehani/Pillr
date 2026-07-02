@@ -354,8 +354,7 @@ export function DutyScreen() {
                   }
 
                   const isToday  = isThisMonth && actualDay === todayDate;
-                  const isOff    = dayIdx === 5 || dayIdx === 6; // Fri & Sat
-                  const isWork   = WORK_DAYS.has(dayIdx);
+                  const isWork   = WORK_DAYS.has(dayIdx); // Sun–Thu = day-shift days
                   const logged   = dayShiftByDay.get(actualDay);
                   const onCalls  = onCallByDay.get(actualDay) || [];
 
@@ -363,6 +362,8 @@ export function DutyScreen() {
                     <div
                       key={dayIdx}
                       className="cal-cell"
+                      onClick={() => openOnCall(actualDay)}
+                      title="Tap to add an on-call shift"
                       style={{
                         minHeight: 90, padding: "8px",
                         borderRight: "1px solid var(--border-2)",
@@ -371,6 +372,7 @@ export function DutyScreen() {
                         outline: isToday ? "2px solid var(--accent)" : "none",
                         outlineOffset: -1,
                         position: "relative",
+                        cursor: "pointer",
                       }}
                     >
                       {/* Day number */}
@@ -378,35 +380,31 @@ export function DutyScreen() {
                         {actualDay}
                       </div>
 
-                      {/* Compact dots — mobile only (green = day shift, indigo = on-call) */}
-                      {isWork && (
-                        <div className="cal-dots" style={{ gap: 3, alignItems: "center", flexWrap: "wrap" }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", display: "block", flexShrink: 0 }} />
-                          {onCalls.map((s) => (
-                            <span key={s.id} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--indigo-text)", display: "block", flexShrink: 0 }} />
-                          ))}
-                        </div>
-                      )}
+                      {/* Compact dots — mobile (green = day shift, indigo = on-call — any day) */}
+                      <div className="cal-dots" style={{ gap: 3, alignItems: "center", flexWrap: "wrap" }}>
+                        {isWork && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", display: "block", flexShrink: 0 }} />}
+                        {onCalls.map((s) => (
+                          <span key={s.id} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--indigo-text)", display: "block", flexShrink: 0 }} />
+                        ))}
+                      </div>
 
                       {/* Detailed content — desktop / tablet */}
                       <div className="cal-detail">
-                      {isOff ? (
-                        <div style={{ fontSize: 10.5, color: "var(--text-faint)", border: "1px dashed var(--border)", borderRadius: 4, textAlign: "center", padding: "3px" }}>
-                          Off
-                        </div>
-                      ) : isWork ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                          {/* Day shift row — always shown for work days */}
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
-                            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: "var(--text-primary)" }}>
-                              {logged
-                                ? `${formatTime(logged.clockedInAt)}${logged.clockedOutAt ? `–${formatTime(logged.clockedOutAt)}` : " (active)"}`
-                                : `${dayShiftStart}–${dayShiftEnd}`}
-                            </span>
-                          </div>
+                          {isWork ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
+                              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: "var(--text-primary)" }}>
+                                {logged
+                                  ? `${formatTime(logged.clockedInAt)}${logged.clockedOutAt ? `–${formatTime(logged.clockedOutAt)}` : " (active)"}`
+                                  : `${dayShiftStart}–${dayShiftEnd}`}
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>Off · no day shift</div>
+                          )}
 
-                          {/* On-call shifts for this day */}
+                          {/* On-call shifts — shown on ANY day, including Fri/Sat */}
                           {onCalls.map((s) => (
                             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--indigo-text)", flexShrink: 0 }} />
@@ -418,19 +416,11 @@ export function DutyScreen() {
                             </div>
                           ))}
 
-                          {/* Quick add on-call button */}
-                          <button
-                            onClick={() => openOnCall(actualDay)}
-                            style={{
-                              marginTop: 2, background: "none", border: "none", cursor: "pointer",
-                              color: "var(--indigo-text)", display: "flex", alignItems: "center", gap: 2,
-                              fontSize: 9.5, fontWeight: 600, padding: 0,
-                            }}
-                          >
+                          {/* Add-on-call hint — the whole cell is tappable, any day */}
+                          <div style={{ marginTop: 2, color: "var(--indigo-text)", display: "flex", alignItems: "center", gap: 2, fontSize: 9.5, fontWeight: 600 }}>
                             <Plus size={9} /> on-call
-                          </button>
+                          </div>
                         </div>
-                      ) : null}
                       </div>
                     </div>
                   );

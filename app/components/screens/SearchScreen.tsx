@@ -75,6 +75,52 @@ interface DrugResult {
   is_controlled: boolean;
 }
 
+// ── Live fallback: RxNorm (free, public, CORS-enabled) ────────────────────────
+// Used when the local drug table has no match — covers virtually any drug and
+// tolerates misspellings (e.g. "elecom" → "Elocon"). Degrades silently offline.
+async function rxnormSearch(q: string): Promise<DrugResult[]> {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const toResults = (json: any): DrugResult[] => {
+    const groups: any[] = json?.drugGroup?.conceptGroup || [];
+    const pick = (ttys: string[]) =>
+      groups.filter((g) => ttys.includes(g?.tty))
+            .flatMap((g) => (g?.conceptProperties || []).map((p: any) => ({ name: p?.name, rxcui: p?.rxcui })));
+    let items = pick(["BN", "IN"]);                          // brand names + ingredients = clean labels
+    if (items.length === 0)
+      items = groups.flatMap((g) => (g?.conceptProperties || []).map((p: any) => ({ name: p?.name, rxcui: p?.rxcui })));
+    const seen = new Set<string>();
+    const out: DrugResult[] = [];
+    for (const it of items) {
+      const key = (it.name || "").toLowerCase();
+      if (!it.name || seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        id: `rx-${it.rxcui}-${out.length}`, generic_name: it.name, brand_names: null,
+        atc_code: null, atc_name: null, rxcui: it.rxcui || null,
+        representative_ndc: null, strength: null, dosage_form: null, route: null, is_controlled: false,
+      });
+    }
+    return out.slice(0, 10);
+  };
+  const base = "https://rxnav.nlm.nih.gov/REST";
+  try {
+    const r = await fetch(`${base}/drugs.json?name=${encodeURIComponent(q)}`);
+    if (r.ok) { const res = toResults(await r.json()); if (res.length) return res; }
+    // misspelling tolerance
+    const s = await fetch(`${base}/spellingsuggestions.json?name=${encodeURIComponent(q)}`);
+    if (s.ok) {
+      const sj: any = await s.json();
+      const sugg: string[] = sj?.suggestionGroup?.suggestionList?.suggestion || [];
+      if (sugg.length) {
+        const r2 = await fetch(`${base}/drugs.json?name=${encodeURIComponent(sugg[0])}`);
+        if (r2.ok) return toResults(await r2.json());
+      }
+    }
+  } catch { /* offline / blocked — fall through to empty */ }
+  return [];
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
 // ── Monograph view ────────────────────────────────────────────────────────────
 function MonographView({ drug, mono, onBack }: {
   drug: string;
@@ -348,7 +394,10 @@ export function SearchScreen() {
     const timer = setTimeout(async () => {
       setSearching(true);
       const { data } = await supabase.rpc("search_drugs", { q: query.trim(), lim: 10 });
-      const found = (data as DrugResult[]) || [];
+      let found = (data as DrugResult[]) || [];
+      if (found.length === 0) {
+        found = await rxnormSearch(query.trim());   // live fallback + misspelling tolerance
+      }
       setResults(found);
       setShowDropdown(true);
       setNoResults(found.length === 0);

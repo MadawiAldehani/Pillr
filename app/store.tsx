@@ -203,10 +203,10 @@ const initialState: AppState = {
   chatMode: "interaction",
   isThinking: false,
   patientSex: "Male",
-  patientAge: "64",
+  patientAge: "",
   patientPreg: "Not pregnant",
-  patientDiseases: ["Hypertension"],
-  patientAllergies: ["Penicillin"],
+  patientDiseases: [],
+  patientAllergies: [],
   messages: initialMessages,
   historyList: [
     { id: "h1", label: "Warfarin + Aspirin", mode: "interaction" },

@@ -21,6 +21,7 @@ export function CaseLogScreen() {
   const [sevFilter, setSevFilter] = useState<Severity | "All">("All");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { fetchCases(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
@@ -62,9 +63,24 @@ export function CaseLogScreen() {
   const hasActiveFilter = !!search || sevFilter !== "All" || !!fromDate || !!toDate;
   const clearFilters = () => { setSearch(""); setSevFilter("All"); setFromDate(""); setToDate(""); };
 
+  // ── Selection (which cases go into the PDF) ──
+  const anySelected = selectedIds.size > 0;
+  const toExport = anySelected ? filtered.filter((c) => selectedIds.has(c.id)) : filtered;
+  const allShownSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const toggleOne = (id: string) =>
+    setSelectedIds((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleAllShown = () =>
+    setSelectedIds((p) => {
+      const n = new Set(p);
+      if (filtered.every((c) => n.has(c.id))) filtered.forEach((c) => n.delete(c.id));
+      else filtered.forEach((c) => n.add(c.id));
+      return n;
+    });
+
   // ── PDF export (print-to-PDF — works on iOS Safari & desktop) ──
   const handleExport = () => {
-    const rows = filtered.map((c) => `<tr>
+    if (toExport.length === 0) { showToast("No cases to export"); return; }
+    const rows = toExport.map((c) => `<tr>
       <td>${c.date}<br><span class="t">${c.time}</span></td>
       <td>${c.countOnly ? "<em>Count only</em>" : escapeHtml(c.meds)}</td>
       <td>${c.countOnly ? "—" : c.severity}</td>
@@ -73,11 +89,11 @@ export function CaseLogScreen() {
       <td>${c.countOnly ? "—" : c.flagged ? "Yes" : "No"}</td>
     </tr>`).join("");
 
-    const drpCount = filtered.filter((c) => c.drp).length;
-    const flaggedCount = filtered.filter((c) => c.flagged).length;
-    const rangeLabel = (fromDate || toDate)
-      ? `${fromDate || "start"} → ${toDate || "today"}`
-      : "All time";
+    const drpCount = toExport.filter((c) => c.drp).length;
+    const flaggedCount = toExport.filter((c) => c.flagged).length;
+    const rangeLabel = anySelected
+      ? `${toExport.length} selected case${toExport.length === 1 ? "" : "s"}`
+      : (fromDate || toDate) ? `${fromDate || "start"} → ${toDate || "today"}` : "All time";
 
     const html = `<!doctype html><html><head><meta charset="utf-8">
 <title>Pillr Case Log — ${escapeHtml(state.userName || "Pharmacist")}</title>
@@ -106,7 +122,7 @@ export function CaseLogScreen() {
   </div>
   <div class="meta">Case Log Report · Generated ${today} · Range: ${escapeHtml(rangeLabel)}</div>
   <div class="stats">
-    <div class="stat"><div class="n">${filtered.length}</div><div class="l">Cases</div></div>
+    <div class="stat"><div class="n">${toExport.length}</div><div class="l">Cases</div></div>
     <div class="stat"><div class="n">${drpCount}</div><div class="l">DRPs caught</div></div>
     <div class="stat"><div class="n">${flaggedCount}</div><div class="l">Flagged</div></div>
   </div>
@@ -180,18 +196,19 @@ export function CaseLogScreen() {
           </button>
           <button
             onClick={handleExport}
-            title="Export the filtered cases as a printable PDF"
+            title={anySelected ? "Export only the selected cases as a PDF" : "Export the shown cases as a PDF (or tick specific cases first)"}
             style={{
               height: 36, padding: "0 14px",
-              background: "var(--card-bg)", color: "var(--text-secondary)",
-              border: "1px solid var(--border)",
+              background: anySelected ? "var(--accent)" : "var(--card-bg)",
+              color: anySelected ? "#fff" : "var(--text-secondary)",
+              border: anySelected ? "none" : "1px solid var(--border)",
               borderRadius: 8, cursor: "pointer",
-              fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 500, fontSize: 13,
+              fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: anySelected ? 600 : 500, fontSize: 13,
               display: "flex", alignItems: "center", gap: 6,
             }}
           >
             <Download size={13} />
-            Export PDF
+            {anySelected ? `Export ${selectedIds.size} selected` : "Export PDF"}
           </button>
         </div>
       </div>
@@ -310,6 +327,26 @@ export function CaseLogScreen() {
         </div>
       )}
 
+      {/* Selection toolbar — pick cases for the PDF */}
+      {filtered.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={toggleAllShown}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px",
+              background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8,
+              cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)",
+              fontFamily: "'IBM Plex Sans', sans-serif",
+            }}
+          >
+            {allShownSelected ? "Clear selection" : "Select all shown"}
+          </button>
+          <span style={{ fontSize: 12.5, color: anySelected ? "var(--accent-soft-text)" : "var(--text-muted)", fontWeight: anySelected ? 600 : 400 }}>
+            {anySelected ? `${selectedIds.size} selected — export will include only these` : "Tip: tick cases to export only those"}
+          </span>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <Card style={{ textAlign: "center", padding: "48px 20px" }}>
@@ -325,6 +362,9 @@ export function CaseLogScreen() {
             <table style={{ width: "100%", minWidth: 820, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "var(--subtle-bg)", borderBottom: "1px solid var(--border)" }}>
+                  <th style={{ padding: "10px 0 10px 14px", width: 22 }}>
+                    <input type="checkbox" checked={allShownSelected} onChange={toggleAllShown} title="Select all" style={{ cursor: "pointer", accentColor: "#1D9E75", width: 15, height: 15 }} />
+                  </th>
                   {["Date", "Medications", "Severity", "Counselling", "DRP", "Flagged"].map((h) => (
                     <th
                       key={h}
@@ -348,11 +388,14 @@ export function CaseLogScreen() {
                 {filtered.map((c, i) => (
                   <tr
                     key={c.id}
-                    style={{ borderBottom: "1px solid var(--border-2)", background: i % 2 === 0 ? "var(--card-bg)" : "var(--subtle-bg)" }}
+                    style={{ borderBottom: "1px solid var(--border-2)", background: selectedIds.has(c.id) ? "var(--accent-soft)" : i % 2 === 0 ? "var(--card-bg)" : "var(--subtle-bg)" }}
                   >
+                    <td style={{ padding: "11px 0 11px 14px" }}>
+                      <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleOne(c.id)} style={{ cursor: "pointer", accentColor: "#1D9E75", width: 15, height: 15 }} />
+                    </td>
                     <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{c.date}</div>
-                      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{c.time}</div>
+                      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{c.time}</div>
                     </td>
                     <td style={{ padding: "11px 14px" }}>
                       {c.countOnly ? (
@@ -396,11 +439,14 @@ export function CaseLogScreen() {
         {/* Mobile: one card per case (no sideways scrolling) */}
         <div className="only-mobile" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((c) => (
-            <Card key={c.id} style={{ padding: "12px 14px" }}>
+            <Card key={c.id} style={{ padding: "12px 14px", border: selectedIds.has(c.id) ? "1.5px solid var(--accent)" : undefined }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: c.countOnly ? 0 : 8 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{c.date}</div>
-                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{c.time}</div>
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleOne(c.id)} style={{ cursor: "pointer", accentColor: "#1D9E75", width: 16, height: 16, marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{c.date}</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{c.time}</div>
+                  </div>
                 </div>
                 {!c.countOnly && <SeverityBadge sev={c.severity} />}
               </div>

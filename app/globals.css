@@ -113,7 +113,7 @@ body {
 
 /* ── Responsive table / calendar helpers ─────────────────────────────────── */
 /* Show the desktop layout by default; the mobile card layout is hidden. */
-.only-mobile  { display: none; }
+.only-mobile  { display: none !important; }   /* !important beats the inline display:flex on desktop */
 .cal-dots     { display: none; }
 .cal-inner    { min-width: 600px; }   /* calendar keeps its grid on desktop */
 
@@ -199,7 +199,7 @@ div:hover > .avatar-overlay { opacity: 1 !important; }
 
   /* Swap wide tables for stacked cards */
   .only-desktop { display: none !important; }
-  .only-mobile  { display: block !important; }
+  .only-mobile  { display: flex !important; }
 
   /* Calendar fits the screen — compact cells with dots instead of text */
   .cal-inner  { min-width: 0 !important; }

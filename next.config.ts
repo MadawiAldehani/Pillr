@@ -10,7 +10,7 @@ const CSP = [
   "img-src 'self' data: blob: https://*.supabase.co https:",
   // Supabase REST + Realtime (wss), OpenRouter AI
   // HaveIBeenPwned k-anonymity API for breached-password check at sign-up
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.pwnedpasswords.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.pwnedpasswords.com https://rxnav.nlm.nih.gov",
   // Google Fonts files
   "font-src 'self' data: https://fonts.gstatic.com",
   // Service worker for Web Push — same origin only

@@ -469,11 +469,12 @@ export function RxScreen() {
                     type="number"
                     value={state.patientAge}
                     onChange={(e) => set({ patientAge: e.target.value })}
+                    placeholder="—"
                     style={{
                       width: 72, height: 32, border: "1px solid var(--input-border)",
                       borderRadius: 8, padding: "0 10px", textAlign: "center",
                       fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, fontWeight: 500,
-                      outline: "none",
+                      outline: "none", background: "var(--card-bg)", color: "var(--text-primary)",
                     }}
                   />
                 </div>

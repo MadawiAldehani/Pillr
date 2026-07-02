@@ -483,7 +483,7 @@ export function CaseLogScreen() {
             style={{ position: "fixed", inset: 0, background: "rgba(15,36,56,0.28)", zIndex: 300 }}
           />
           <div
-            className="panel-animate"
+            className="modal-animate"
             style={{
               position: "fixed",
               top: "50%", left: "50%",

@@ -149,6 +149,17 @@ body {
   animation: pillrFade 0.22s ease forwards;
 }
 
+/* Centered modal entrance — keeps the translate(-50%,-50%) centering intact
+   (a plain fade/slide animation would override the inline transform and
+   knock the modal off-centre / off-screen). */
+@keyframes pillrModalIn {
+  from { opacity: 0; transform: translate(-50%, -47%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+.modal-animate {
+  animation: pillrModalIn 0.18s ease forwards;
+}
+
 .bounce-dot {
   animation: pillrBounce 1.2s ease infinite;
 }
